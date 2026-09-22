@@ -29,7 +29,7 @@ RESULTS = ROOT / "results"
 
 def main() -> None:
     cases = load_cases(DATASET)
-    print(f"Загружено кейсов: {len(cases)} (все — T1)\n")
+    print(f"Загружено кейсов: {len(cases)} (все - T1)\n")
 
     models = [
         GigaChatClient(),

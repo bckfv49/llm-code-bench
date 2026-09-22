@@ -100,13 +100,12 @@ class NoisyModel(LLMClient):
         self._rng = random.Random(seed)
 
     def complete(self, prompt: str) -> str:
-        # С вероятностью p_correct пробуем «угадать» через ORACLE-блок
-        # (если он есть в промпте — режим отладки), иначе честно рандомим.
-        if self._rng.random() < self.p_correct:
-            m = re.search(r"ORACLE_TYPE=(\S+)\s+ORACLE_FIX=(.*?)(?:\n|$)", prompt)
-            if m:
-                return f"TYPE: {m.group(1)}\nFIX: {m.group(2).strip()}"
-        # Честный шум: случайный тип и случайный fix.
+        # Всегда пробуем прочитать эталон из oracle-блока — это наш способ
+        # "притвориться" моделью с заданным качеством p_correct.
+        m = re.search(r"ORACLE_TYPE=(\S+)\s+ORACLE_FIX=(.*?)(?:\n|$)", prompt)
+        if m and self._rng.random() < self.p_correct:
+            return f"TYPE: {m.group(1)}\nFIX: {m.group(2).strip()}"
+        # Иначе — случайный правдоподобный шум.
         err_type = self._rng.choice(self._KNOWN_TYPES)
         fix = self._rng.choice(self._FIX_TEMPLATES)
         return f"TYPE: {err_type}\nFIX: {fix}"

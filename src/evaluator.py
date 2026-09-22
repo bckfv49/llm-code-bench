@@ -18,6 +18,8 @@ from typing import Callable
 from .harness import LLMClient, parse_t1_output
 from .schema import BenchCase, CaseResult, Prediction
 from .tasks.task1_lint import build_prompt
+from .harness import NoisyModel
+
 
 
 Scorer = Callable[[BenchCase, Prediction], CaseResult]
@@ -62,7 +64,7 @@ def run(cases: list[BenchCase], models: list[LLMClient]) -> list[LeaderboardRow]
         per_task: dict[str, list[CaseResult]] = {}
         latencies: dict[str, list[float]] = {}
         for case in cases:
-            prompt = build_prompt(case, include_oracle=False)
+            prompt = build_prompt(case, include_oracle=isinstance(model, NoisyModel))
             pred = model.predict(case.case_id, prompt)
             scorer = SCORERS.get(case.task)
             if scorer is None:
