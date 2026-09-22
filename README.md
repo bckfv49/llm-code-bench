@@ -44,8 +44,9 @@ pip install -r requirements.txt
 python -m scripts.run_demo
 ```
 
-Скрипт прогонит T1 через реальную модель GigaChat + две шумные baseline-модели
-и напечатает лидерборд. Результаты сохранятся в папку `results/`.
+Скрипт прогонит T1 (33 кейса) через реальную модель GigaChat + два
+калиброванных baseline'а и напечатает лидерборд. Результаты сохранятся
+в папку `results/`.
 
 Для работы GigaChat нужен ключ. Создай файл `.env` в корне проекта:
 
@@ -56,20 +57,38 @@ GIGACHAT_CREDENTIALS=твой_Authorization_key
 Ключ выдаётся на https://developers.sber.ru/studio на бесплатном тарифе Freemium.
 Файл `.env` **не** коммитится в git — он в `.gitignore`.
 
-Если ключа нет — просто закомментируй строку `GigaChatClient(),` в `scripts/run_demo.py`,
-и стенд крутится на шумных моделях без сети.
+Если ключа нет — просто закомментируй строку `GigaChatClient(),` в
+`scripts/run_demo.py`, и стенд крутится на baseline-моделях без сети.
 
 ## Актуальные результаты
 
-Прогон GigaChat-2-Pro на 10 handcrafted-кейсах T1 (см. `results/leaderboard.txt`):
+Прогон на 33 handcrafted-кейсах T1 (см. `results/leaderboard.txt` и
+`results/run.json`):
 
 | Модель | EM | TypeAcc | Pass | Задержка |
 |---|---:|---:|---:|---:|
-| gigachat:GigaChat-2-Pro | 60% | 70% | 40% | ~1.1 сек |
-| noisy-baseline (p=0.5) | 10% | 0% | 0% | ~0 |
-| noisy-baseline-weak (p=0.2) | 10% | 0% | 0% | ~0 |
+| gigachat:GigaChat-2-Pro | 57.6% | **72.7%** | 42.4% | ~740 мс |
+| noisy-baseline (p=0.5) | 51.5% | 60.6% | 48.5% | ~0 |
+| noisy-baseline-weak (p=0.2) | 21.2% | 24.2% | 18.2% | ~0 |
 
-Это первый честный baseline, с которым будут сравниваться другие модели.
+**Что тут интересного.** GigaChat уверенно выигрывает по классификации типа
+ошибки (**73% против 61%** у калиброванного шума), но проигрывает по Pass
+Rate. Причина — метрика Exact Match штрафует за любые расхождения в
+форматировании: лишние пробелы, backticks, синонимичные конструкции
+(`x is None` vs `if x is None:`). Калиброванный baseline читает эталон
+буква в букву и таких потерь не имеет, LLM — теряет.
+
+Это ожидаемый эффект и хороший аргумент для будущих недель роадмапа:
+добавить более мягкие метрики (CodeBLEU, AST-diff), которые оценивают
+семантическую эквивалентность, а не буквенное совпадение.
+
+**Про калиброванные baseline'ы.** `noisy-baseline` — это не имитация
+плохой нейросети, а честная лестница: с вероятностью `p_correct` модель
+даёт правильный ответ (читая oracle-блок из промпта), иначе — случайный
+из фиксированных списков. GigaChat oracle-блок **не получает**, оценивается
+на чистом промпте. Baseline'ы нужны, чтобы (а) убедиться, что стенд
+чувствителен к качеству и (б) видеть, где реальная модель проседает
+относительно контролируемого эталона.
 
 ## Структура
 
@@ -80,11 +99,11 @@ llm-code-bench/
 ├── .env                         # ключ GigaChat (не в git)
 ├── data/
 │   └── task1_lint/
-│       └── samples.jsonl        # 10 стартовых кейсов
+│       └── samples.jsonl        # 33 handcrafted-кейса
 ├── src/
 │   ├── schema.py                # pydantic-модели кейса и предсказания
-│   ├── harness.py               # LLMClient + GigaChat + dummy-модели
-│   ├── evaluator.py             # метрики + прогон
+│   ├── harness.py               # LLMClient + GigaChat + NoisyModel + EchoModel
+│   ├── evaluator.py             # метрики + прогон (oracle только для NoisyModel)
 │   └── tasks/
 │       ├── task1_lint.py        # T1 — реализовано
 │       ├── task2_security.py    # T2 — заглушка
@@ -99,7 +118,7 @@ llm-code-bench/
 │   ├── leaderboard.txt
 │   └── run.json
 └── tests/
-    └── test_smoke.py            # 8 smoke-тестов
+    └── test_smoke.py            # 7 smoke-тестов
 ```
 
 ## Тесты
@@ -108,20 +127,23 @@ llm-code-bench/
 python -m pytest tests/ -q
 ```
 
-Восемь smoke-тестов: загрузка датасета, работа парсера, EchoModel даёт 100% на oracle-промпте,
-NoisyModel всегда хуже эталона, лидерборд рендерится, `case_id` уникальны, валидатор
-принимает актуальный датасет.
+Семь smoke-тестов: загрузка датасета, работа парсера, EchoModel даёт 100%
+на oracle-промпте, NoisyModel всегда хуже эталона, лидерборд рендерится,
+`case_id` уникальны, валидатор принимает актуальный датасет.
 
 ## Роадмап
 
 - [x] MVP T1 + сквозной evaluator на dummy-моделях
-- [x] Расширение стартового датасета T1 до 10 кейсов
+- [x] Расширение стартового датасета T1 до 33 кейсов
 - [x] Валидатор JSONL-датасета (`scripts/validate_dataset.py`)
 - [x] Подключение реальной модели GigaChat через официальный SDK
 - [x] Сохранение результатов прогона в `results/` (leaderboard + JSON)
+- [x] Калиброванный `NoisyModel` (p_correct) как честная лестница baseline'ов
+- [x] Изоляция oracle-блока: только для NoisyModel, GigaChat получает чистый промпт
 - [ ] Скрипты сбора кейсов из `git blame` (bug-fix pairs)
 - [ ] Мутационное тестирование для T1
-- [ ] Подключение OpenAI и локальных моделей
+- [ ] Подключение OpenAI и локальных моделей для сравнения
+- [ ] Мягкие метрики (CodeBLEU, AST-diff) в дополнение к Exact Match
 - [ ] T2: сбор CWE-кейсов из GitHub Advisories
 - [ ] T3: unit-based verifier + Docker sandbox
 - [ ] T4: построение call-graph через `tree-sitter`
