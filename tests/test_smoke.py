@@ -53,3 +53,18 @@ def test_leaderboard_format() -> None:
     text = format_leaderboard(rows)
     assert "echo-oracle" in text
     assert "T1" in text
+
+
+
+def test_dataset_ids_are_unique() -> None:
+    """case_id должен быть уникален в пределах датасета."""
+    cases = load_cases(DATASET)
+    ids = [c.case_id for c in cases]
+    assert len(ids) == len(set(ids))
+
+
+def test_validator_accepts_current_dataset() -> None:
+    """Валидатор должен принимать актуальный T1-датасет без ошибок."""
+    from scripts.validate_dataset import validate
+
+    assert validate(DATASET) == []

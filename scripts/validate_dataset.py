@@ -1,10 +1,10 @@
 """
-Простейший валидатор JSONL-датасета
+валидатор JSONL-датасета.
 
 Проверяет, что каждый кейс парсится в BenchCase, что case_id уникальны
 и что expected непустой
 
-Запуск - python -m scripts.validate_dataset data/task1_lint/samples.jsonl
+Запуск -    python -m scripts.validate_dataset data/task1_lint/samples.jsonl
 """
 
 from __future__ import annotations
