@@ -91,10 +91,49 @@ class NoisyModel(LLMClient):
 
 
 def parse_t1_output(raw: str) -> dict[str, str]:
-    """Достаём из ответа модели тип ошибки и предложенный фикс."""
+    """Достаём из ответа модели тип ошибки и предложенный фикс.
+
+    Убираем обёртку в backticks (```code``` или `code`) — LLM любят её добавлять.
+    """
     type_match = _TYPE_LINE_RE.search(raw)
     fix_match = _FIX_LINE_RE.search(raw)
-    return {
-        "error_type": type_match.group(1).strip() if type_match else "",
-        "fix": fix_match.group(1).strip() if fix_match else "",
-    }
+
+    error_type = type_match.group(1).strip() if type_match else ""
+    fix = fix_match.group(1).strip() if fix_match else ""
+
+    # снимаем ``` или ` вокруг фикса
+    fix = fix.strip("`").strip()
+
+    return {"error_type": error_type, "fix": fix}
+# ---------------------------------------------------------------------------
+# GigaChat: облачная модель Сбера. Бесплатный тариф для физлиц.
+# Ключ читается из переменной окружения GIGACHAT_CREDENTIALS (см. .env).
+# ---------------------------------------------------------------------------
+
+import os
+
+
+class GigaChatClient(LLMClient):
+    """Клиент к GigaChat через официальный SDK."""
+
+    def __init__(self, model: str = "GigaChat-2-Pro") -> None:
+        from gigachat import GigaChat  # импорт внутри, чтобы harness работал без SDK
+        credentials = os.environ.get("GIGACHAT_CREDENTIALS")
+        if not credentials:
+            raise RuntimeError(
+                "GIGACHAT_CREDENTIALS не задан. "
+                "Положи ключ в .env или переменную окружения."
+            )
+        # verify_ssl_certs=False — временно, для теста. Правильно ставить корневой
+        # сертификат Минцифры, но для курсовой этого достаточно.
+        self._giga = GigaChat(
+            credentials=credentials,
+            model=model,
+            verify_ssl_certs=False,
+        )
+        self.name = f"gigachat:{model}"
+        self.model_id = model
+
+    def complete(self, prompt: str) -> str:
+        response = self._giga.chat(prompt)
+        return response.choices[0].message.content

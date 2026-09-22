@@ -1,0 +1,5 @@
+model                task     n       EM  TypeAcc    Pass   lat(ms)
+-------------------------------------------------------------------
+gigachat:GigaChat-2-Pro T1      10   60.00%   70.00%  40.00%    736.95
+noisy-baseline       T1      10   10.00%    0.00%   0.00%      0.01
+noisy-baseline-weak  T1      10   10.00%    0.00%   0.00%      0.00

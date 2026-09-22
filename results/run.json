@@ -1,0 +1,39 @@
+{
+  "run_at": "2026-09-22T22:05:12",
+  "n_cases": 10,
+  "rows": [
+    {
+      "model_name": "gigachat:GigaChat-2-Pro",
+      "task": "T1",
+      "n_cases": 10,
+      "metrics": {
+        "exact_match": 0.6,
+        "type_accuracy": 0.7,
+        "pass_rate": 0.4
+      },
+      "avg_latency_ms": 736.9478500040714
+    },
+    {
+      "model_name": "noisy-baseline",
+      "task": "T1",
+      "n_cases": 10,
+      "metrics": {
+        "exact_match": 0.1,
+        "type_accuracy": 0.0,
+        "pass_rate": 0.0
+      },
+      "avg_latency_ms": 0.012280000373721123
+    },
+    {
+      "model_name": "noisy-baseline-weak",
+      "task": "T1",
+      "n_cases": 10,
+      "metrics": {
+        "exact_match": 0.1,
+        "type_accuracy": 0.0,
+        "pass_rate": 0.0
+      },
+      "avg_latency_ms": 0.0005999929271638393
+    }
+  ]
+}

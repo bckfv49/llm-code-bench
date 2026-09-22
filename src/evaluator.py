@@ -62,7 +62,7 @@ def run(cases: list[BenchCase], models: list[LLMClient]) -> list[LeaderboardRow]
         per_task: dict[str, list[CaseResult]] = {}
         latencies: dict[str, list[float]] = {}
         for case in cases:
-            prompt = build_prompt(case, include_oracle=True)  # demo-режим
+            prompt = build_prompt(case, include_oracle=False)
             pred = model.predict(case.case_id, prompt)
             scorer = SCORERS.get(case.task)
             if scorer is None:
