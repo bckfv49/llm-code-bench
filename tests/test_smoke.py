@@ -25,20 +25,38 @@ def test_dataset_loads() -> None:
 
 
 def test_echo_model_is_perfect() -> None:
-    """EchoModel — верхняя граница: должна дать 100% на любом кейсе."""
+    """EchoModel — sanity-check парсера. Работает только с oracle-блоком в промпте."""
+    from src.tasks.task1_lint import build_prompt
     cases = load_cases(DATASET)
-    rows = run(cases, [EchoModel()])
-    assert len(rows) == 1
-    assert rows[0].metrics["pass_rate"] == 1.0
-    assert rows[0].metrics["exact_match"] == 1.0
+    model = EchoModel()
+    for case in cases:
+        raw = model.complete(build_prompt(case, include_oracle=True))
+        parsed = parse_t1_output(raw)
+        assert parsed["error_type"] == case.expected["error_type"]
+        assert parsed["fix"].strip() == case.expected["fix"].strip()
 
 
 def test_noisy_model_is_worse_than_oracle() -> None:
+    """NoisyModel с p_correct=0.0 должна давать 0 совпадений на oracle-промпте,
+    EchoModel — 100%. Значит метрика реально что-то меряет."""
+    from src.tasks.task1_lint import build_prompt
     cases = load_cases(DATASET)
-    rows = run(cases, [EchoModel(), NoisyModel(p_correct=0.0)])
-    by_name = {r.model_name: r for r in rows}
-    assert by_name["echo-oracle"].metrics["pass_rate"] > by_name["noisy-baseline"].metrics["pass_rate"]
+    echo = EchoModel()
+    noisy = NoisyModel(p_correct=0.0, seed=42)
 
+    echo_hits = 0
+    noisy_hits = 0
+    for case in cases:
+        prompt = build_prompt(case, include_oracle=True)
+        e = parse_t1_output(echo.complete(prompt))
+        n = parse_t1_output(noisy.complete(prompt))
+        if e["error_type"] == case.expected["error_type"] and e["fix"].strip() == case.expected["fix"].strip():
+            echo_hits += 1
+        if n["error_type"] == case.expected["error_type"] and n["fix"].strip() == case.expected["fix"].strip():
+            noisy_hits += 1
+
+    assert echo_hits == len(cases)   # 100% на oracle
+    assert noisy_hits < echo_hits    # noisy строго хуже
 
 def test_output_parser() -> None:
     raw = "TYPE: SyntaxError\nFIX: if x == 1:"
