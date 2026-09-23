@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-09-22T22:48:48",
+  "run_at": "2026-09-23T14:54:17",
   "n_cases": 33,
   "rows": [
     {
@@ -7,33 +7,33 @@
       "task": "T1",
       "n_cases": 33,
       "metrics": {
-        "exact_match": 0.5757575757575758,
-        "type_accuracy": 0.7272727272727273,
-        "pass_rate": 0.42424242424242425
+        "type_accuracy": 0.7878787878787878,
+        "exact_match": 0.6923076923076923,
+        "pass_rate": 0.6363636363636364
       },
-      "avg_latency_ms": 741.8263575739481
+      "avg_latency_ms": 565.3827242398014
     },
     {
       "model_name": "noisy-baseline",
       "task": "T1",
       "n_cases": 33,
       "metrics": {
-        "exact_match": 0.5151515151515151,
         "type_accuracy": 0.6060606060606061,
+        "exact_match": 0.5384615384615384,
         "pass_rate": 0.48484848484848486
       },
-      "avg_latency_ms": 0.005554548944487717
+      "avg_latency_ms": 0.011415148478452906
     },
     {
       "model_name": "noisy-baseline-weak",
       "task": "T1",
       "n_cases": 33,
       "metrics": {
-        "exact_match": 0.21212121212121213,
         "type_accuracy": 0.24242424242424243,
+        "exact_match": 0.19230769230769232,
         "pass_rate": 0.18181818181818182
       },
-      "avg_latency_ms": 0.0016272727710505326
+      "avg_latency_ms": 0.004036364385463072
     }
   ]
 }

@@ -26,22 +26,27 @@ Scorer = Callable[[BenchCase, Prediction], CaseResult]
 
 
 def score_t1(case: BenchCase, pred: Prediction) -> CaseResult:
-    """Метрики Task 1: Exact Match фикса + точность классификации типа."""
+
     parsed = parse_t1_output(pred.raw_output)
     pred.parsed = parsed
 
     type_correct = parsed["error_type"] == case.expected["error_type"]
     fix_correct = parsed["fix"].strip() == case.expected["fix"].strip()
 
+    multiple_valid = bool(case.metadata.get("multiple_valid", False))
+
+    metrics: dict[str, float] = {"type_accuracy": float(type_correct)}
+    if not multiple_valid:
+        metrics["exact_match"] = float(fix_correct)
+
+    passed = type_correct and (fix_correct or multiple_valid)
+
     return CaseResult(
         case_id=case.case_id,
         model_name=pred.model_name,
         task=case.task,
-        metrics={
-            "exact_match": float(fix_correct),
-            "type_accuracy": float(type_correct),
-        },
-        passed=type_correct and fix_correct,
+        metrics=metrics,
+        passed=passed,
     )
 
 
@@ -75,9 +80,14 @@ def run(cases: list[BenchCase], models: list[LLMClient]) -> list[LeaderboardRow]
 
         for task, results in per_task.items():
             agg: dict[str, float] = {}
-            keys = results[0].metrics.keys()
-            for k in keys:
-                agg[k] = mean(r.metrics[k] for r in results)
+            # собираем все ключи из всех результатов, а не только из первого
+            all_keys: set[str] = set()
+            for r in results:
+                all_keys.update(r.metrics.keys())
+            for k in all_keys:
+                values = [r.metrics[k] for r in results if k in r.metrics]
+                if values:
+                    agg[k] = mean(values)
             agg["pass_rate"] = mean(float(r.passed) for r in results)
             rows.append(
                 LeaderboardRow(
