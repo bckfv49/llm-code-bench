@@ -13,7 +13,7 @@
                 <mxCell id="stage2" value="&lt;b&gt;2. Нормализация и дедупликация&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px&quot;&gt;Проверка на контаминацию обучающих выборок LLM через эмбеддинги кода&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;verticalAlign=middle;align=center;" parent="1" vertex="1">
                     <mxGeometry x="125" y="170" width="600" height="70" as="geometry"/>
                 </mxCell>
-                <mxCell id="stage3" value="&lt;b&gt;3. Датасет JSONL — 500+ кейсов на Python, Java, C++&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontSize=14;verticalAlign=top;align=center;spacingTop=10;" parent="1" vertex="1">
+                <mxCell id="stage3" value="&lt;b&gt;3. Датасет JSONL - 500+ кейсов на Python, Java, C++&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontSize=14;verticalAlign=top;align=center;spacingTop=10;" parent="1" vertex="1">
                     <mxGeometry x="125" y="290" width="600" height="270" as="geometry"/>
                 </mxCell>
                 <mxCell id="task1" value="&lt;b&gt;Таск 1&lt;/b&gt;&lt;br/&gt;Предсказание lint-ошибок&lt;br/&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Exact Match + Accuracy типа&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;verticalAlign=middle;align=center;" parent="1" vertex="1">
@@ -31,10 +31,10 @@
                 <mxCell id="task5" value="&lt;b&gt;Таск 5&lt;/b&gt;&lt;br/&gt;Объяснение алгоритма&lt;br/&gt;&lt;span style=&quot;font-size:10px&quot;&gt;ROUGE-L · BERTScore · O(n)&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;verticalAlign=middle;align=center;" parent="1" vertex="1">
                     <mxGeometry x="430" y="450" width="180" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="stage4" value="&lt;b&gt;4. Harness — единый LLM-клиент&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px&quot;&gt;Заглушки для тестов · OpenAI · GigaChat · локальный vLLM&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#d79b00;fontSize=14;verticalAlign=middle;align=center;" parent="1" vertex="1">
+                <mxCell id="stage4" value="&lt;b&gt;4. Harness - единый LLM-клиент&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px&quot;&gt;Заглушки для тестов · OpenAI · GigaChat · локальный vLLM&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#d79b00;fontSize=14;verticalAlign=middle;align=center;" parent="1" vertex="1">
                     <mxGeometry x="125" y="590" width="600" height="70" as="geometry"/>
                 </mxCell>
-                <mxCell id="stage5" value="&lt;b&gt;5. Evaluator — оценка ответов&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px&quot;&gt;Метрики по каждому таску + Docker-песочница для безопасного запуска кода&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#d79b00;fontSize=14;verticalAlign=middle;align=center;" parent="1" vertex="1">
+                <mxCell id="stage5" value="&lt;b&gt;5. Evaluator - оценка ответов&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px&quot;&gt;Метрики по каждому таску + Docker-песочница для безопасного запуска кода&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#d79b00;fontSize=14;verticalAlign=middle;align=center;" parent="1" vertex="1">
                     <mxGeometry x="125" y="700" width="600" height="70" as="geometry"/>
                 </mxCell>
                 <mxCell id="stage6" value="&lt;b&gt;6. Лидерборд + bootstrap-анализ значимости различий моделей&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#d6b656;fontSize=14;verticalAlign=middle;align=center;" parent="1" vertex="1">
