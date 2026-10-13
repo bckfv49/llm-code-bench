@@ -252,9 +252,39 @@ def case_record(case: BenchCase, model: LLMClient, pred: Prediction,
         "parsed": pred.parsed,
         "raw_output": pred.raw_output,
         "error": pred.error,
-        "latency_ms": round(pred.latency_ms, 1),
+        "latency_ms": round(pred.latency_ms, 2),
         "meta": {k: case.metadata[k] for k in _RECORD_META if k in case.metadata},
     }
+
+
+def aggregate(model_name: str, per_task: dict[str, list[CaseResult]],
+              latencies: dict[str, list[float]]) -> list[LeaderboardRow]:
+    """Результаты по кейсам одной модели -> строки лидерборда (по строке на таск)."""
+    rows: list[LeaderboardRow] = []
+    for task, results in per_task.items():
+        agg: dict[str, float] = {}
+        # собираем все ключи из всех результатов, а не только из первого
+        all_keys: set[str] = set()
+        for r in results:
+            all_keys.update(r.metrics.keys())
+        for k in all_keys:
+            values = [r.metrics[k] for r in results if k in r.metrics]
+            if values:
+                agg[k] = mean(values)
+        agg["pass_rate"] = mean(float(r.passed) for r in results)
+        pairs = [(r.labels["gold"], r.labels["pred"]) for r in results if r.labels]
+        if pairs:
+            agg["cwe_macro_f1"] = macro_f1(pairs)
+        rows.append(
+            LeaderboardRow(
+                model_name=model_name,
+                task=task,
+                n_cases=len(results),
+                metrics=agg,
+                avg_latency_ms=mean(latencies[task]),
+            )
+        )
+    return rows
 
 
 def run(cases: list[BenchCase], models: list[LLMClient],
@@ -280,29 +310,7 @@ def run(cases: list[BenchCase], models: list[LLMClient],
             per_task.setdefault(case.task, []).append(result)
             latencies.setdefault(case.task, []).append(pred.latency_ms)
 
-        for task, results in per_task.items():
-            agg: dict[str, float] = {}
-            # собираем все ключи из всех результатов, а не только из первого
-            all_keys: set[str] = set()
-            for r in results:
-                all_keys.update(r.metrics.keys())
-            for k in all_keys:
-                values = [r.metrics[k] for r in results if k in r.metrics]
-                if values:
-                    agg[k] = mean(values)
-            agg["pass_rate"] = mean(float(r.passed) for r in results)
-            pairs = [(r.labels["gold"], r.labels["pred"]) for r in results if r.labels]
-            if pairs:
-                agg["cwe_macro_f1"] = macro_f1(pairs)
-            rows.append(
-                LeaderboardRow(
-                    model_name=model.name,
-                    task=task,
-                    n_cases=len(results),
-                    metrics=agg,
-                    avg_latency_ms=mean(latencies[task]),
-                )
-            )
+        rows += aggregate(model.name, per_task, latencies)
     return rows
 
 

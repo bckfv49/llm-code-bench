@@ -1,5 +1,6 @@
 {
   "run_at": "2026-10-14T00:27:19",
+  "rescored_at": "2026-10-13T21:31:27",
   "n_cases": 95,
   "rows": [
     {
@@ -7,123 +8,123 @@
       "task": "T1",
       "n_cases": 41,
       "metrics": {
-        "type_accuracy": 0.6097560975609756,
-        "fix_similarity": 0.6217432992487372,
         "pass_hard": 0.625,
         "ast_match": 0.5365853658536586,
+        "fix_similarity": 0.6217432992487372,
+        "type_accuracy": 0.6097560975609756,
         "exact_match": 0.5757575757575758,
         "pass_rate": 0.5121951219512195
       },
-      "avg_latency_ms": 0.008156091519972174
+      "avg_latency_ms": 0.0024390243902439024
     },
     {
       "model_name": "noisy-baseline",
       "task": "T2",
       "n_cases": 23,
       "metrics": {
-        "line_precision": 0.6521739130434783,
-        "cwe_accuracy": 0.5217391304347826,
-        "line_recall": 0.6521739130434783,
         "line_f1": 0.6521739130434783,
+        "line_precision": 0.6521739130434783,
+        "line_recall": 0.6521739130434783,
+        "cwe_accuracy": 0.5217391304347826,
         "pass_rate": 0.5217391304347826,
         "cwe_macro_f1": 0.48947368421052634
       },
-      "avg_latency_ms": 0.006773903884965441
+      "avg_latency_ms": 0.004347826086956522
     },
     {
       "model_name": "noisy-baseline",
       "task": "T3",
       "n_cases": 31,
       "metrics": {
-        "ast_reduction": 0.18671851688473287,
         "pass_hard": 0.5555555555555556,
+        "ast_reduction": 0.18671851688473287,
         "loc_reduction": 0.25622119815668204,
         "tests_pass": 1.0,
         "pass_rate": 0.45161290322580644
       },
-      "avg_latency_ms": 0.009874219916039897
+      "avg_latency_ms": 0.0
     },
     {
       "model_name": "noisy-baseline-weak",
       "task": "T1",
       "n_cases": 41,
       "metrics": {
-        "type_accuracy": 0.1951219512195122,
-        "fix_similarity": 0.37423534642262163,
         "pass_hard": 0.0,
         "ast_match": 0.17073170731707318,
+        "fix_similarity": 0.37423534642262163,
+        "type_accuracy": 0.1951219512195122,
         "exact_match": 0.15151515151515152,
         "pass_rate": 0.14634146341463414
       },
-      "avg_latency_ms": 0.009656111459906509
+      "avg_latency_ms": 0.0
     },
     {
       "model_name": "noisy-baseline-weak",
       "task": "T2",
       "n_cases": 23,
       "metrics": {
-        "line_precision": 0.5217391304347826,
-        "cwe_accuracy": 0.30434782608695654,
-        "line_recall": 0.5217391304347826,
         "line_f1": 0.5217391304347826,
+        "line_precision": 0.5217391304347826,
+        "line_recall": 0.5217391304347826,
+        "cwe_accuracy": 0.30434782608695654,
         "pass_rate": 0.30434782608695654,
         "cwe_macro_f1": 0.265
       },
-      "avg_latency_ms": 0.010726102830275246
+      "avg_latency_ms": 0.0
     },
     {
       "model_name": "noisy-baseline-weak",
       "task": "T3",
       "n_cases": 31,
       "metrics": {
-        "ast_reduction": 0.022940454649445725,
         "pass_hard": 0.1111111111111111,
+        "ast_reduction": 0.022940454649445725,
         "loc_reduction": 0.05887096774193548,
         "tests_pass": 1.0,
         "pass_rate": 0.0967741935483871
       },
-      "avg_latency_ms": 0.012954839715553869
+      "avg_latency_ms": 0.0
     },
     {
       "model_name": "gigachat:GigaChat-2-Pro",
       "task": "T1",
       "n_cases": 41,
       "metrics": {
-        "type_accuracy": 0.8292682926829268,
-        "fix_similarity": 0.8665849883245906,
         "pass_hard": 0.75,
-        "ast_match": 0.85,
-        "exact_match": 0.9090909090909091,
-        "pass_rate": 0.7804878048780488
+        "ast_match": 0.9,
+        "fix_similarity": 0.9153654761294686,
+        "type_accuracy": 0.8292682926829268,
+        "exact_match": 0.9696969696969697,
+        "pass_rate": 0.8292682926829268
       },
-      "avg_latency_ms": 1536.8268756173188
+      "avg_latency_ms": 1536.8219512195121
     },
     {
       "model_name": "gigachat:GigaChat-2-Pro",
       "task": "T2",
       "n_cases": 23,
       "metrics": {
-        "line_precision": 0.9130434782608695,
-        "cwe_accuracy": 0.782608695652174,
-        "line_recall": 0.9347826086956522,
         "line_f1": 0.9130434782608695,
+        "line_precision": 0.9130434782608695,
+        "line_recall": 0.9347826086956522,
+        "cwe_accuracy": 0.782608695652174,
         "pass_rate": 0.782608695652174,
         "cwe_macro_f1": 0.6793650793650794
       },
-      "avg_latency_ms": 990.7843347881799
+      "avg_latency_ms": 990.7782608695652
     },
     {
       "model_name": "gigachat:GigaChat-2-Pro",
       "task": "T3",
       "n_cases": 31,
       "metrics": {
-        "ast_reduction": 0.3477684015229096,
         "pass_hard": 0.6666666666666666,
+        "ast_reduction": 0.3477684015229096,
         "loc_reduction": 0.4838860544217687,
         "tests_pass": 0.9032258064516129,
         "pass_rate": 0.8709677419354839
       },
-      "avg_latency_ms": 1160.3196000214666
+      "avg_latency_ms": 1160.316129032258
     }
   ]
 }

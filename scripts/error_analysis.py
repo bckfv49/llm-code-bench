@@ -78,14 +78,19 @@ def _section_t1(recs: list[dict]) -> list[str]:
         typed = sum(r["metrics"].get("type_accuracy", 0) == 1.0 for r in group)
         out.append(f"| {etype} | {_pct(typed, len(group))} | {_pct(sum(r['passed'] for r in group), len(group))} |")
     failed = [r for r in recs if not r["passed"]]
+    off_format = [r for r in failed if not (r.get("parsed") or {}).get("error_type")]
     if failed:
         out += ["", "Проваленные кейсы:", "",
-                "| Кейс | Эталон: тип | Ответ: тип | Эталон: fix | Ответ: fix |",
-                "|---|---|---|---|---|"]
+                "| Кейс | Эталон: тип | Ответ: тип | Эталон: fix | Ответ: fix | Замечание |",
+                "|---|---|---|---|---|---|"]
         for r in failed:
             p = r.get("parsed") or {}
+            note = "ответ не по формату: " + _cell(r.get("raw_output", "")[:80]) if r in off_format else ""
             out.append(f"| {r['case_id']} | {r['expected']['error_type']} | {_cell(p.get('error_type', ''))} "
-                       f"| {_cell(r['expected']['fix'])} | {_cell(p.get('fix', ''))} |")
+                       f"| {_cell(r['expected']['fix'])} | {_cell(p.get('fix', ''))} | {note} |")
+    if off_format:
+        out += ["", f"Ответов не по формату (нет строки `TYPE:`): {len(off_format)}. "
+                "Они не засчитаны: умение отвечать в заданном формате — часть задачи."]
     trapped = [r for r in failed if r["meta"].get("trap")]
     if trapped:
         out += ["", "**Ловушки, в которые попала модель:**", ""]

@@ -563,6 +563,14 @@ def test_t1_prompt_lists_allowed_types_and_delete() -> None:
     # одиночная строка без блока остаётся как есть — строгость сохраняется
     ("TYPE: unused-import\nFIX: print('hello')", "import os\nprint('hello')", "print('hello')"),
     ("TYPE: SyntaxError\nFIX: `if x == 1:`", "if x = 1:\n    print('one')", "if x == 1:"),
+    # код без ``` на строках после пустого FIX: (реальный ответ GigaChat)
+    ("TYPE: IndentationError\nFIX: \ndef inc(x):\n    return x + 1", "def inc(x):\nreturn x + 1",
+     "return x + 1"),
+    # весь сниппет сдвинут вправо — это не изменение (реальный ответ GigaChat)
+    ("TYPE: IndentationError\nFIX: \n    for i in range(3):\n        print(i)",
+     "for i in range(3):\nprint(i)", "print(i)"),
+    # ответ не по формату остаётся незасчитанным
+    ("unused-import: DELETE", "import json\nx = 42", ""),
 ])
 def test_t1_parser_variants(raw, snippet, expected_fix) -> None:
     assert parse_t1_output(raw, snippet)["fix"] == expected_fix
@@ -598,3 +606,28 @@ def test_t1_lint_labels_verified_by_pylint() -> None:
         if c.expected["error_type"] not in SYNTAX | RUNTIME:
             ok, why = verify(c.expected["error_type"], c.metadata["snippet"])
             assert ok, (c.case_id, why)
+
+
+
+def test_t1_off_format_answer_not_counted() -> None:
+    from src.evaluator import score_t1
+    from src.schema import Prediction
+
+    case = next(c for c in load_cases(DATASET) if c.expected["error_type"] == "unused-import")
+    r = score_t1(case, Prediction(case_id=case.case_id, model_name="m",
+                                  raw_output="unused-import: DELETE"))
+    assert not r.passed  # тип не указан в формате TYPE: — не засчитано
+
+
+def test_rescore_reproduces_run() -> None:
+    """Пересчёт по сохранённым ответам даёт те же метрики, что и прогон."""
+    from scripts.rescore import rescore
+    from src.harness import EchoModel, NoisyModel
+
+    cases = load_cases(DATASET) + load_cases(T2_DATASET)
+    records: list[dict] = []
+    rows = run(cases, [EchoModel(), NoisyModel(p_correct=0.5, seed=3)], records=records)
+    new_rows, _ = rescore(records)
+    key = lambda r: (r.model_name, r.task)
+    assert [(key(r), r.metrics) for r in sorted(rows, key=key)] == \
+           [(key(r), r.metrics) for r in sorted(new_rows, key=key)]

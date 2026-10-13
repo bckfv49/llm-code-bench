@@ -5,21 +5,21 @@ Baseline-заглушки не включены: они читают этало�
 
 ## gigachat:GigaChat-2-Pro
 
-T1: 32/41 (78%), T2: 18/23 (78%), T3: 27/31 (87%)
+T1: 34/41 (83%), T2: 18/23 (78%), T3: 27/31 (87%)
 
 ### T1 — ошибки статического анализа
 
 | Сложность | Засчитано |
 |---|---:|
-| basic | 26/33 (79%) |
+| basic | 28/33 (85%) |
 | hard | 6/8 (75%) |
 
 | Тип ошибки (эталон) | Тип угадан | Засчитано |
 |---|---:|---:|
-| IndentationError | 2/3 (67%) | 0/3 (0%) |
 | TabError | 0/1 (0%) | 0/1 (0%) |
 | implicit-str-concat | 0/1 (0%) | 0/1 (0%) |
 | unused-import | 2/4 (50%) | 2/4 (50%) |
+| IndentationError | 2/3 (67%) | 2/3 (67%) |
 | TypeError | 4/6 (67%) | 4/6 (67%) |
 | SyntaxError | 4/4 (100%) | 4/4 (100%) |
 | NameError | 4/4 (100%) | 4/4 (100%) |
@@ -36,17 +36,17 @@ T1: 32/41 (78%), T2: 18/23 (78%), T3: 27/31 (87%)
 
 Проваленные кейсы:
 
-| Кейс | Эталон: тип | Ответ: тип | Эталон: fix | Ответ: fix |
-|---|---|---|---|---|
-| T1-py-0003 | IndentationError | `IndentationError` | `return x + 1` | — |
-| T1-py-0006 | TypeError | `implicit-str-concat` | `print('n=' + str(n))` | `print(f'n={n}')` |
-| T1-py-0018 | unused-import | — | — | — |
-| T1-py-0019 | unused-import | — | — | — |
-| T1-py-0020 | IndentationError | `IndentationError` | `print(i)` | — |
-| T1-py-0021 | IndentationError | `SyntaxError` | `pass` | `pass` |
-| T1-py-0024 | TypeError | `implicit-str-concat` | `result = [1, 2] + list((3, 4))` | `result = [1, 2] + list((3, 4))` |
-| T1-py-0035 | TabError | `IndentationError` | `return 1` | `return 1` |
-| T1-py-0038 | implicit-str-concat | `SyntaxError` | `COLUMNS = ["id", "name", "email"]` | `COLUMNS = ["id", "name", "email"]` |
+| Кейс | Эталон: тип | Ответ: тип | Эталон: fix | Ответ: fix | Замечание |
+|---|---|---|---|---|---|
+| T1-py-0006 | TypeError | `implicit-str-concat` | `print('n=' + str(n))` | `print(f'n={n}')` |  |
+| T1-py-0018 | unused-import | — | — | — | ответ не по формату: `unused-import: DELETE` |
+| T1-py-0019 | unused-import | — | — | — | ответ не по формату: `unused-import: DELETE` |
+| T1-py-0021 | IndentationError | `SyntaxError` | `pass` | `pass` |  |
+| T1-py-0024 | TypeError | `implicit-str-concat` | `result = [1, 2] + list((3, 4))` | `result = [1, 2] + list((3, 4))` |  |
+| T1-py-0035 | TabError | `IndentationError` | `return 1` | `return 1` |  |
+| T1-py-0038 | implicit-str-concat | `SyntaxError` | `COLUMNS = ["id", "name", "email"]` | `COLUMNS = ["id", "name", "email"]` |  |
+
+Ответов не по формату (нет строки `TYPE:`): 2. Они не засчитаны: умение отвечать в заданном формате — часть задачи.
 
 **Ловушки, в которые попала модель:**
 
@@ -158,9 +158,9 @@ def format_address(parts):
 
 **T1** — по категории «тип ошибки»:
 
-- IndentationError: 3
 - TypeError: 2
 - unused-import: 2
+- IndentationError: 1
 - TabError: 1
 - implicit-str-concat: 1
 

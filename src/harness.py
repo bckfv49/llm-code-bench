@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import random
 import re
+import textwrap
 import time
 from abc import ABC, abstractmethod
 
@@ -61,6 +62,7 @@ class LLMClient(ABC):
 # [ \t]* а не \s*: иначе при пустом `FIX:` регулярка «перепрыгивала» на
 # следующую строку и читала вместо фикса ``` или слово python.
 _FIX_LINE_RE = re.compile(r"^FIX:[ \t]*(.*)$", re.MULTILINE)
+_KEY_LINE_RE = re.compile(r"^[A-Z][A-Z_]*:")
 _CODE_BLOCK_RE = re.compile(r"```[ \t]*\w*[ \t]*\n(.*?)```", re.DOTALL)
 _DELETE_RE = re.compile(r"\(?\s*(delete|remove)( (the|this))?( line)?\s*\)?\.?", re.IGNORECASE)
 _TYPE_LINE_RE = re.compile(r"^TYPE:\s*(\S+)", re.MULTILINE)
@@ -169,7 +171,7 @@ def parse_t1_output(raw: str, snippet: str | None = None) -> dict[str, str]:
 
     Модели не всегда пишут фикс одной строкой после `FIX:`. Разбираем:
       - обёртку в backticks (`code` или ```code```);
-      - блок кода на следующих строках после `FIX:`;
+      - блок кода на следующих строках после `FIX:` — в ``` или без них;
       - буквальные `\\n` внутри строки;
       - целый исправленный сниппет вместо одной строки: если передан исходный
         snippet, берём единственную изменённую строку, а если строки только
@@ -187,6 +189,16 @@ def parse_t1_output(raw: str, snippet: str | None = None) -> dict[str, str]:
         block = _CODE_BLOCK_RE.search(raw, fix_match.start(1))
         if block:
             fix, from_block = block.group(1), True
+        elif not fix:
+            # код без ``` на строках после пустого `FIX:` — до следующего `KEY:`
+            tail = raw[fix_match.end():].lstrip("\n").split("\n")
+            body = []
+            for line in tail:
+                if _KEY_LINE_RE.match(line):
+                    break
+                body.append(line)
+            if any(line.strip() for line in body):
+                fix, from_block = "\n".join(body), True
     fix = fix.replace("\\n", "\n")
     if snippet is not None and (from_block or "\n" in fix.strip("\n")):
         fix = _changed_line(fix, snippet)
@@ -201,7 +213,8 @@ def parse_t1_output(raw: str, snippet: str | None = None) -> dict[str, str]:
 
 def _changed_line(block: str, snippet: str) -> str:
     """Модель вернула весь исправленный сниппет — достаём из него фикс."""
-    lines = [ln for ln in block.split("\n") if ln.strip()]
+    # dedent: модель могла сдвинуть весь сниппет вправо, это не изменение
+    lines = [ln for ln in textwrap.dedent(block).split("\n") if ln.strip()]
     original = snippet.split("\n")
     changed = [ln for ln in lines if ln not in original]
     if len(changed) == 1:
