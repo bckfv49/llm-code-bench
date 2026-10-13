@@ -44,10 +44,10 @@ MUTATORS: list[tuple[str, str, str, str | None]] = [
     ("IndentationError", r"^    (return .+)$", r"\1", "IndentationError"),
     # Конкретный except -> голый.
     ("bare-except", r"^(\s*)except OSError:$", r"\1except:", None),
-    # `is None` -> `== None` (E711).
-    ("comparison-with-none", r"^(\s*if \w+) is None:$", r"\1 == None:", None),
-    # None-дефолт -> мутабельный.
-    ("mutable-default", r"^(def \w+\(.*?)cache=None(.*)$", r"\1cache={}\2", None),
+    # `is None` -> `== None` (pylint singleton-comparison, pycodestyle E711).
+    ("singleton-comparison", r"^(\s*if \w+) is None:$", r"\1 == None:", None),
+    # None-дефолт -> мутабельный (pylint dangerous-default-value).
+    ("dangerous-default-value", r"^(def \w+\(.*?)cache=None(.*)$", r"\1cache={}\2", None),
 ]
 
 

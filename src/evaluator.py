@@ -68,7 +68,7 @@ Scorer = Callable[[BenchCase, Prediction], CaseResult]
 
 def score_t1(case: BenchCase, pred: Prediction) -> CaseResult:
 
-    parsed = parse_t1_output(pred.raw_output)
+    parsed = parse_t1_output(pred.raw_output, case.metadata.get("snippet"))
     pred.parsed = parsed
 
     type_correct = parsed["error_type"] == case.expected["error_type"]
@@ -85,6 +85,9 @@ def score_t1(case: BenchCase, pred: Prediction) -> CaseResult:
     # семантически тот же фикс больше не считается ошибкой.
     ast_equal = bool(metrics.get("ast_match", 0.0))
     passed = type_correct and (fix_correct or ast_equal or multiple_valid)
+    # Pass отдельно по кейсам-ловушкам: усредняется только по ним.
+    if case.metadata.get("difficulty") == "hard":
+        metrics["pass_hard"] = float(passed)
 
     return CaseResult(
         case_id=case.case_id,
@@ -306,7 +309,7 @@ def run(cases: list[BenchCase], models: list[LLMClient],
 # Колонки лидерборда по таскам: (заголовок, ключ метрики, ширина).
 TASK_COLUMNS: dict[str, list[tuple[str, str, int]]] = {
     "T1": [("EM", "exact_match", 7), ("AST", "ast_match", 7), ("Sim", "fix_similarity", 7),
-           ("TypeAcc", "type_accuracy", 8)],
+           ("TypeAcc", "type_accuracy", 8), ("Hard", "pass_hard", 7)],
     "T2": [("LineP", "line_precision", 7), ("LineR", "line_recall", 7),
            ("LineF1", "line_f1", 7), ("CWE-Acc", "cwe_accuracy", 8),
            ("CWE-F1", "cwe_macro_f1", 7)],

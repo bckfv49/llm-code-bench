@@ -535,3 +535,66 @@ def test_report_common_failures_need_all_models() -> None:
             _rec("a", "T1-2", False), _rec("b", "T1-2", True)]    # провалила одна
     common = build_report(recs).split("## Провалы всех моделей")[1]
     assert "NameError: 1" in common  # только T1-1
+
+
+# --- T1 v2: закрытый список типов, разбор фикса, ловушки -------------------
+
+
+def test_t1_prompt_lists_allowed_types_and_delete() -> None:
+    from src.tasks.task1_lint import ERROR_TYPES, build_prompt
+
+    prompt = build_prompt(load_cases(DATASET)[0])
+    assert "Allowed TYPE values:" in prompt and "DELETE" in prompt
+    assert all(t in prompt for t in ERROR_TYPES)
+    # в списке есть классы, которых нет в датасете, — ответ не угадать перебором
+    used = {c.expected["error_type"] for c in load_cases(DATASET)}
+    assert set(ERROR_TYPES) - used
+
+
+@pytest.mark.parametrize("raw, snippet, expected_fix", [
+    # фикс блоком кода на следующих строках (раньше читалось слово "python")
+    ("TYPE: IndentationError\nFIX: \n```python\ndef inc(x):\n    return x + 1\n```",
+     "def inc(x):\nreturn x + 1", "return x + 1"),
+    # буквальные \n внутри строки
+    ("TYPE: IndentationError\nFIX: class Foo:\\n    pass", "class Foo:\npass", "pass"),
+    # удаление строки
+    ("TYPE: unused-import\nFIX: DELETE", "import os\nprint('hello')", ""),
+    ("TYPE: unused-import\nFIX:\n```\nprint('hello')\n```", "import os\nprint('hello')", ""),
+    # одиночная строка без блока остаётся как есть — строгость сохраняется
+    ("TYPE: unused-import\nFIX: print('hello')", "import os\nprint('hello')", "print('hello')"),
+    ("TYPE: SyntaxError\nFIX: `if x == 1:`", "if x = 1:\n    print('one')", "if x == 1:"),
+])
+def test_t1_parser_variants(raw, snippet, expected_fix) -> None:
+    assert parse_t1_output(raw, snippet)["fix"] == expected_fix
+
+
+def test_t1_hard_cases_have_traps_and_hard_column(monkeypatch) -> None:
+    from src.harness import EchoModel
+
+    cases = load_cases(DATASET)
+    hard = [c for c in cases if c.metadata.get("difficulty") == "hard"]
+    assert len(hard) >= 5 and all(c.metadata.get("trap") for c in hard)
+    row = run(cases, [EchoModel()])[0]
+    assert row.metrics["pass_hard"] == 1.0
+    assert "Hard" in format_leaderboard([row])
+
+
+def test_t1_labels_verified_by_compile_and_run() -> None:
+    """Синтаксические метки — compile(), ошибки выполнения — запуском."""
+    from scripts.verify_t1_labels import RUNTIME, SYNTAX, verify
+
+    for c in load_cases(DATASET):
+        if c.expected["error_type"] in SYNTAX | RUNTIME:
+            ok, why = verify(c.expected["error_type"], c.metadata["snippet"])
+            assert ok, (c.case_id, why)
+
+
+def test_t1_lint_labels_verified_by_pylint() -> None:
+    """Правила стиля — настоящими сообщениями pylint (если pylint установлен)."""
+    pytest.importorskip("pylint")
+    from scripts.verify_t1_labels import RUNTIME, SYNTAX, verify
+
+    for c in load_cases(DATASET):
+        if c.expected["error_type"] not in SYNTAX | RUNTIME:
+            ok, why = verify(c.expected["error_type"], c.metadata["snippet"])
+            assert ok, (c.case_id, why)

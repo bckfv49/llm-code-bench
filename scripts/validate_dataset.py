@@ -18,6 +18,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from src.schema import BenchCase
+from src.tasks.task1_lint import ERROR_TYPES
 from src.tasks.task3_refactor import code_metrics, is_simpler
 
 
@@ -40,6 +41,9 @@ def validate(path: Path) -> list[str]:
             seen.add(case.case_id)
             if not case.expected:
                 errors.append(f"line {i}: expected is empty")
+            if case.task == "T1" and case.expected.get("error_type") not in ERROR_TYPES:
+                errors.append(f"line {i}: error_type {case.expected.get('error_type')!r} "
+                              "is not in task1_lint.ERROR_TYPES")
             if case.task == "T2":
                 errors.extend(f"line {i}: {e}" for e in _check_t2(case))
             if case.task == "T3":

@@ -62,6 +62,14 @@ def t3_failure_reason(rec: dict) -> str:
 
 def _section_t1(recs: list[dict]) -> list[str]:
     out = ["### T1 — ошибки статического анализа", ""]
+    by_diff: dict[str, list[dict]] = defaultdict(list)
+    for r in recs:
+        by_diff[r["meta"].get("difficulty", "basic")].append(r)
+    if "hard" in by_diff:
+        out += ["| Сложность | Засчитано |", "|---|---:|"]
+        out += [f"| {d} | {_pct(sum(r['passed'] for r in by_diff[d]), len(by_diff[d]))} |"
+                for d in ("basic", "hard") if d in by_diff]
+        out.append("")
     by_type: dict[str, list[dict]] = defaultdict(list)
     for r in recs:
         by_type[r["expected"]["error_type"]].append(r)
@@ -78,6 +86,10 @@ def _section_t1(recs: list[dict]) -> list[str]:
             p = r.get("parsed") or {}
             out.append(f"| {r['case_id']} | {r['expected']['error_type']} | {_cell(p.get('error_type', ''))} "
                        f"| {_cell(r['expected']['fix'])} | {_cell(p.get('fix', ''))} |")
+    trapped = [r for r in failed if r["meta"].get("trap")]
+    if trapped:
+        out += ["", "**Ловушки, в которые попала модель:**", ""]
+        out += [f"- **{r['case_id']}** — {r['meta']['trap']}" for r in trapped]
     return out + [""]
 
 
@@ -94,12 +106,17 @@ def _section_t2(recs: list[dict]) -> list[str]:
     wrong_cwe = [r for r in recs if r["metrics"].get("cwe_accuracy", 0) < 1.0]
     out += ["", f"**Путаница CWE** — {len(wrong_cwe)} из {len(recs)} кейсов:", ""]
     if wrong_cwe:
-        out += ["| Кейс | Домен | Эталон | Допустимо также | Ответ модели |", "|---|---|---|---|---|"]
+        out += ["Колонка «Объяснение модели» показывает, поняла ли модель суть уязвимости, "
+                "даже если номер CWE неверный.", "",
+                "| Кейс | Домен | Эталон | Допустимо также | Ответ модели | Объяснение модели |",
+                "|---|---|---|---|---|---|"]
         for r in wrong_cwe:
             alt = ", ".join(r["meta"].get("acceptable_cwe", [])) or "—"
-            answer = (r.get("parsed") or {}).get("cwe") or "(не указан)"
+            parsed = r.get("parsed") or {}
+            answer = parsed.get("cwe") or "(не указан)"
+            cause = (parsed.get("cause") or "").replace("|", "/")[:160] or "—"
             out.append(f"| {r['case_id']} | {r['meta'].get('domain', '?')} | {r['expected']['cwe']} "
-                       f"| {alt} | {answer} |")
+                       f"| {alt} | {answer} | {cause} |")
 
     missed = [r for r in recs if r["metrics"].get("line_recall", 0) < 1.0
               or r["metrics"].get("line_precision", 0) < 0.5]
@@ -142,7 +159,7 @@ def _section_t3(recs: list[dict]) -> list[str]:
     return out + [""]
 
 
-_GROUP_KEY = {
+_GROUP_KEY = {  # категории для «провалов всех моделей»
     "T1": lambda r: r["expected"].get("error_type", "?"),
     "T2": lambda r: r["expected"].get("cwe", "?"),
     "T3": lambda r: r["meta"].get("pattern", "?"),

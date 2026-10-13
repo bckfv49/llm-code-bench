@@ -58,7 +58,11 @@ class LLMClient(ABC):
 
 
 
-_FIX_LINE_RE = re.compile(r"^FIX:\s*(.+)$", re.MULTILINE)
+# [ \t]* а не \s*: иначе при пустом `FIX:` регулярка «перепрыгивала» на
+# следующую строку и читала вместо фикса ``` или слово python.
+_FIX_LINE_RE = re.compile(r"^FIX:[ \t]*(.*)$", re.MULTILINE)
+_CODE_BLOCK_RE = re.compile(r"```[ \t]*\w*[ \t]*\n(.*?)```", re.DOTALL)
+_DELETE_RE = re.compile(r"\(?\s*(delete|remove)( (the|this))?( line)?\s*\)?\.?", re.IGNORECASE)
 _TYPE_LINE_RE = re.compile(r"^TYPE:\s*(\S+)", re.MULTILINE)
 # Oracle-блок T2 (см. tasks/task2_security.build_prompt).
 _T2_ORACLE_RE = re.compile(r"ORACLE_LINES=([\d,]+)\s+ORACLE_CWE=(\S+)")
@@ -101,7 +105,7 @@ class NoisyModel(LLMClient):
     _KNOWN_TYPES = [
         "SyntaxError", "IndentationError", "NameError", "TypeError",
         "ZeroDivisionError", "E501", "unused-import", "bare-except",
-        "mutable-default", "comparison-with-none",
+        "dangerous-default-value", "singleton-comparison",
     ]
 
     # Правдоподобные «шаблоны» фиксов, из которых модель тянет случайно.
@@ -160,10 +164,17 @@ class NoisyModel(LLMClient):
         return f"```python\n{source.group(1) if source else ''}\n```"
 
 
-def parse_t1_output(raw: str) -> dict[str, str]:
+def parse_t1_output(raw: str, snippet: str | None = None) -> dict[str, str]:
     """Достаём из ответа модели тип ошибки и предложенный фикс.
 
-    Убираем обёртку в backticks (```code``` или `code`) — LLM любят её добавлять.
+    Модели не всегда пишут фикс одной строкой после `FIX:`. Разбираем:
+      - обёртку в backticks (`code` или ```code```);
+      - блок кода на следующих строках после `FIX:`;
+      - буквальные `\\n` внутри строки;
+      - целый исправленный сниппет вместо одной строки: если передан исходный
+        snippet, берём единственную изменённую строку, а если строки только
+        пропали — это удаление;
+      - `DELETE` (удалить строку) -> пустой фикс, как в эталоне.
     """
     type_match = _TYPE_LINE_RE.search(raw)
     fix_match = _FIX_LINE_RE.search(raw)
@@ -171,10 +182,35 @@ def parse_t1_output(raw: str) -> dict[str, str]:
     error_type = type_match.group(1).strip() if type_match else ""
     fix = fix_match.group(1).strip() if fix_match else ""
 
+    from_block = False
+    if fix_match and (not fix or fix.startswith("```")):
+        block = _CODE_BLOCK_RE.search(raw, fix_match.start(1))
+        if block:
+            fix, from_block = block.group(1), True
+    fix = fix.replace("\\n", "\n")
+    if snippet is not None and (from_block or "\n" in fix.strip("\n")):
+        fix = _changed_line(fix, snippet)
+
     # снимаем ``` или ` вокруг фикса
-    fix = fix.strip("`").strip()
+    fix = fix.strip().strip("`").strip()
+    if _DELETE_RE.fullmatch(fix):
+        fix = ""
 
     return {"error_type": error_type, "fix": fix}
+
+
+def _changed_line(block: str, snippet: str) -> str:
+    """Модель вернула весь исправленный сниппет — достаём из него фикс."""
+    lines = [ln for ln in block.split("\n") if ln.strip()]
+    original = snippet.split("\n")
+    changed = [ln for ln in lines if ln not in original]
+    if len(changed) == 1:
+        return changed[0]
+    if not changed and len(lines) < len([ln for ln in original if ln.strip()]):
+        return ""  # ничего не изменено, строки только убраны — это удаление
+    return block
+
+
 # ---------------------------------------------------------------------------
 # GigaChat: облачная модель Сбера. Бесплатный тариф для физлиц.
 # Ключ читается из переменной окружения GIGACHAT_CREDENTIALS (см. .env).
