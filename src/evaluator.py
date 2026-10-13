@@ -186,13 +186,17 @@ def score_t3(case: BenchCase, pred: Prediction) -> CaseResult:
         metrics["loc_reduction"] = (before["loc"] - after["loc"]) / before["loc"]
         metrics["ast_reduction"] = (before["ast_nodes"] - after["ast_nodes"]) / before["ast_nodes"]
         simpler = task3_refactor.is_simpler(before, after)
+    passed = tests_ok and simpler
+    # Pass отдельно по кейсам-ловушкам: усредняется только по ним.
+    if case.metadata.get("difficulty") == "hard":
+        metrics["pass_hard"] = float(passed)
 
     return CaseResult(
         case_id=case.case_id,
         model_name=pred.model_name,
         task=case.task,
         metrics=metrics,
-        passed=tests_ok and simpler,
+        passed=passed,
     )
 
 
@@ -264,7 +268,7 @@ TASK_COLUMNS: dict[str, list[tuple[str, str, int]]] = {
            ("LineF1", "line_f1", 7), ("CWE-Acc", "cwe_accuracy", 8),
            ("CWE-F1", "cwe_macro_f1", 7)],
     "T3": [("Tests", "tests_pass", 7), ("LOC↓", "loc_reduction", 7),
-           ("AST↓", "ast_reduction", 7)],
+           ("AST↓", "ast_reduction", 7), ("Hard", "pass_hard", 7)],
 }
 
 

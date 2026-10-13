@@ -445,3 +445,39 @@ def test_docker_sandbox_contains_malicious_code(evil) -> None:
     nonce = uuid.uuid4().hex
     res = DockerSandbox(timeout=10).run(build_test_script(evil, "assert True", nonce))
     assert nonce not in res.stdout  # ни один из вариантов не засчитан
+
+
+def test_t3_hard_cases_have_traps() -> None:
+    hard = [c for c in load_cases(T3_DATASET) if c.metadata["difficulty"] == "hard"]
+    assert len(hard) >= 5
+    for c in hard:
+        assert c.metadata["trap"] and c.metadata["naive_solution"]
+
+
+def test_t3_pass_hard_counted_only_on_hard_cases(monkeypatch) -> None:
+    import src.evaluator as ev
+    from src.schema import Prediction
+
+    monkeypatch.setattr(ev, "T3_SANDBOX", FakeSandbox())
+    for case in load_cases(T3_DATASET):
+        ref = case.expected["reference_solution"]
+        r = ev.score_t3(case, Prediction(case_id="x", model_name="m", raw_output=ref))
+        assert ("pass_hard" in r.metrics) == (case.metadata["difficulty"] == "hard")
+
+
+def test_t3_naive_refactors_fail_in_docker() -> None:
+    """Ловушка работает: «очевидный» рефакторинг реально проваливает тесты."""
+    import uuid
+
+    from src.sandbox import DockerSandbox
+    from src.tasks.task3_refactor import build_test_script
+
+    _docker_or_skip()
+    sb = DockerSandbox()
+    for case in load_cases(T3_DATASET):
+        naive = case.metadata.get("naive_solution")
+        if not naive:
+            continue
+        nonce = uuid.uuid4().hex
+        res = sb.run(build_test_script(naive, case.metadata["tests"], nonce))
+        assert nonce not in res.stdout, f"{case.case_id}: наивное решение проходит тесты"

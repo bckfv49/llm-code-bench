@@ -62,7 +62,8 @@ def _check_t2(case: BenchCase) -> list[str]:
 
 def _check_t3(case: BenchCase) -> list[str]:
     """T3, статически (код не запускается): исходник и эталон парсятся,
-    оба определяют entry_point, тесты есть, эталон проще исходника.
+    оба определяют entry_point, тесты есть, эталон проще исходника,
+    у кейса-ловушки описаны ловушка и наивное решение.
     Что тесты реально проходят, проверяется в Docker при сборке датасета
     и в tests/test_smoke.py."""
     errs: list[str] = []
@@ -81,6 +82,11 @@ def _check_t3(case: BenchCase) -> list[str]:
         if entry not in names:
             errs.append(f"{label} does not define entry_point {entry!r}")
         metrics[label] = code_metrics(src)
+    if case.metadata.get("difficulty") not in ("basic", "hard"):
+        errs.append(f"metadata.difficulty must be basic|hard, got {case.metadata.get('difficulty')!r}")
+    if case.metadata.get("difficulty") == "hard" and not (
+            case.metadata.get("trap") and case.metadata.get("naive_solution")):
+        errs.append("hard case needs metadata.trap and metadata.naive_solution")
     if len(metrics) == 2 and not is_simpler(metrics["snippet"], metrics["reference"]):
         errs.append(f"reference is not simpler: {metrics['snippet']} -> {metrics['reference']}")
     return errs
