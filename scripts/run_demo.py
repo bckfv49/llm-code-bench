@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -25,7 +26,10 @@ from src.tasks.task1_lint import load_cases
 
 
 ROOT = Path(__file__).resolve().parent.parent
-DATASET = ROOT / "data" / "task1_lint" / "samples.jsonl"
+DATASETS = [
+    ROOT / "data" / "task1_lint" / "samples.jsonl",
+    ROOT / "data" / "task2_security" / "samples.jsonl",
+]
 RESULTS = ROOT / "results"
 
 
@@ -54,8 +58,10 @@ def build_models() -> list[LLMClient]:
 
 
 def main() -> None:
-    cases = load_cases(DATASET)
-    print(f"Загружено кейсов: {len(cases)} (все - T1)\n")
+    cases = [c for path in DATASETS for c in load_cases(path)]
+    by_task = Counter(c.task for c in cases)
+    print(f"Загружено кейсов: {len(cases)} ("
+          + ", ".join(f"{t}: {n}" for t, n in sorted(by_task.items())) + ")\n")
 
     models = build_models()
     print("Модели: " + ", ".join(m.name for m in models) + "\n")

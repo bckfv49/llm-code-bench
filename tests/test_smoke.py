@@ -204,3 +204,100 @@ def test_build_models_is_env_driven(monkeypatch) -> None:
     monkeypatch.setenv("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1")
     monkeypatch.setenv("LOCAL_LLM_MODEL", "qwen2.5-coder")
     assert "local:qwen2.5-coder" in [m.name for m in build_models()]
+
+
+# --- T2: поиск уязвимостей ------------------------------------------------
+
+T2_DATASET = ROOT / "data" / "task2_security" / "samples.jsonl"
+
+
+def test_t2_dataset_valid_and_covers_domains() -> None:
+    """T2 проходит валидатор и покрывает все три домена из задания."""
+    from scripts.validate_dataset import validate
+
+    assert validate(T2_DATASET) == []
+    cases = load_cases(T2_DATASET)
+    assert len(cases) >= 20
+    assert {c.metadata["domain"] for c in cases} == {"web", "ml", "system"}
+
+
+def test_t2_validator_rejects_bad_line(tmp_path) -> None:
+    """Номер строки за пределами сниппета — ошибка разметки."""
+    import json
+
+    from scripts.validate_dataset import validate
+
+    bad = {
+        "case_id": "T2-bad", "task": "T2", "language": "python", "prompt": "",
+        "expected": {"lines": [9], "cwe": "CWE-89", "cause": "x"},
+        "metadata": {"snippet": "a = 1\nb = 2"},
+    }
+    path = tmp_path / "bad.jsonl"
+    path.write_text(json.dumps(bad) + "\n", encoding="utf-8")
+    assert any("out of range" in e for e in validate(path))
+
+
+def test_t2_parser_handles_ranges_and_messy_cwe() -> None:
+    from src.tasks.task2_security import parse_t2_output
+
+    parsed = parse_t2_output("**LINES:** 3, 5-7\n**CWE:** cwe 089\nCAUSE: injection")
+    assert parsed["lines"] == [3, 5, 6, 7]
+    assert parsed["cwe"] == "CWE-89"
+    assert parsed["cause"] == "injection"
+
+
+def test_t2_prompt_numbers_lines_and_hides_oracle() -> None:
+    from src.tasks.task2_security import build_prompt
+
+    case = load_cases(T2_DATASET)[0]
+    clean = build_prompt(case, include_oracle=False)
+    assert "1| def get_user" in clean
+    assert "ORACLE" not in clean
+    assert "ORACLE_CWE=CWE-89" in build_prompt(case, include_oracle=True)
+
+
+def test_t2_scorer_precision_recall_and_acceptable_cwe() -> None:
+    """Лишняя строка бьёт по precision, альтернативный CWE засчитывается."""
+    from src.evaluator import score_t2
+    from src.schema import BenchCase, Prediction
+
+    case = BenchCase(
+        case_id="T2-x", task="T2", language="python", prompt="",
+        expected={"lines": [2, 3], "cwe": "CWE-367", "cause": ""},
+        metadata={"snippet": "a\nb\nc\nd", "acceptable_cwe": ["CWE-362"]},
+    )
+    pred = Prediction(case_id="T2-x", model_name="m", raw_output="LINES: 2, 4\nCWE: CWE-362")
+    r = score_t2(case, pred)
+    assert r.metrics["line_precision"] == 0.5
+    assert r.metrics["line_recall"] == 0.5
+    assert r.metrics["cwe_accuracy"] == 1.0
+    assert r.labels == {"gold": "CWE-367", "pred": "CWE-367"}
+    assert not r.passed  # одна из двух строк с багом не найдена
+
+
+def test_macro_f1() -> None:
+    from src.evaluator import macro_f1
+
+    assert macro_f1([("A", "A"), ("B", "B")]) == 1.0
+    # A: tp=1 fn=1 -> 2/3; B: tp=0 fp=1 -> 0  => (2/3 + 0) / 2
+    assert abs(macro_f1([("A", "A"), ("A", "B")]) - 1 / 3) < 1e-9
+
+
+def test_t2_echo_perfect_and_noisy_ladder() -> None:
+    from src.harness import EchoModel, NoisyModel
+
+    cases = load_cases(T2_DATASET)
+    rows = {r.model_name: r for r in run(cases, [
+        EchoModel(), NoisyModel(p_correct=0.0, seed=1),
+    ])}
+    assert rows["echo-oracle"].metrics["pass_rate"] == 1.0
+    assert rows["echo-oracle"].metrics["cwe_macro_f1"] == 1.0
+    assert rows["noisy-baseline"].metrics["pass_rate"] < 1.0
+
+
+def test_leaderboard_has_block_per_task() -> None:
+    from src.harness import EchoModel
+
+    cases = load_cases(DATASET) + load_cases(T2_DATASET)
+    text = format_leaderboard(run(cases, [EchoModel()]))
+    assert "TypeAcc" in text and "CWE-F1" in text

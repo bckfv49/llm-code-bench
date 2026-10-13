@@ -5,8 +5,8 @@ Evaluator — ядро оценки.
 каждый кейс через каждую модель, вычисляет метрики и агрегирует
 их в лидерборд.
 
-Пока реализован только T1. Каждый следующий таск добавляет свою
-функцию scorer'а с сигнатурой `(case, prediction) -> CaseResult`.
+Реализованы T1 и T2. Каждый таск добавляет билдер промпта в PROMPT_BUILDERS
+и scorer с сигнатурой `(case, prediction) -> CaseResult` в SCORERS.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Callable
 
 from .harness import LLMClient, parse_t1_output
 from .schema import BenchCase, CaseResult, Prediction
-from .tasks.task1_lint import build_prompt
+from .tasks import task1_lint, task2_security
 
 
 
@@ -93,7 +93,64 @@ def score_t1(case: BenchCase, pred: Prediction) -> CaseResult:
     )
 
 
-SCORERS: dict[str, Scorer] = {"T1": score_t1}
+def score_t2(case: BenchCase, pred: Prediction) -> CaseResult:
+    """Метрики Task 2: Precision/Recall/F1 по строкам + верность CWE.
+
+    CWE засчитывается, если совпал с эталоном или с одной из альтернатив
+    в metadata.acceptable_cwe. Кейс пройден, если CWE верный, найдены все
+    строки с багом и хотя бы половина названных строк — действительно баг
+    (иначе модель могла бы «пройти», перечислив все строки подряд).
+    """
+    parsed = task2_security.parse_t2_output(pred.raw_output)
+    pred.parsed = parsed
+
+    gold_lines = set(case.expected["lines"])
+    pred_lines = set(parsed["lines"])
+    hit = len(gold_lines & pred_lines)
+    precision = hit / len(pred_lines) if pred_lines else 0.0
+    recall = hit / len(gold_lines)
+    f1 = 2 * precision * recall / (precision + recall) if hit else 0.0
+
+    gold_cwe = case.expected["cwe"]
+    accepted = {gold_cwe, *case.metadata.get("acceptable_cwe", [])}
+    cwe_ok = parsed["cwe"] in accepted
+
+    return CaseResult(
+        case_id=case.case_id,
+        model_name=pred.model_name,
+        task=case.task,
+        metrics={
+            "line_precision": precision,
+            "line_recall": recall,
+            "line_f1": f1,
+            "cwe_accuracy": float(cwe_ok),
+        },
+        passed=cwe_ok and recall == 1.0 and precision >= 0.5,
+        # Допустимая альтернатива считается тем же классом, что и эталон.
+        labels={"gold": gold_cwe, "pred": gold_cwe if cwe_ok else (parsed["cwe"] or "NONE")},
+    )
+
+
+def macro_f1(pairs: list[tuple[str, str]]) -> float:
+    """Macro-F1 по классам: F1 считается для каждого класса отдельно и
+    усредняется без весов, поэтому редкие CWE весят столько же, сколько
+    частые. Классы — объединение эталонных и предсказанных (как в sklearn)."""
+    classes = {g for g, _ in pairs} | {p for _, p in pairs}
+    scores = []
+    for c in classes:
+        tp = sum(1 for g, p in pairs if g == c and p == c)
+        fp = sum(1 for g, p in pairs if g != c and p == c)
+        fn = sum(1 for g, p in pairs if g == c and p != c)
+        scores.append(2 * tp / (2 * tp + fp + fn) if tp else 0.0)
+    return mean(scores) if scores else 0.0
+
+
+SCORERS: dict[str, Scorer] = {"T1": score_t1, "T2": score_t2}
+
+PROMPT_BUILDERS: dict[str, Callable[..., str]] = {
+    "T1": task1_lint.build_prompt,
+    "T2": task2_security.build_prompt,
+}
 
 
 @dataclass
@@ -112,11 +169,11 @@ def run(cases: list[BenchCase], models: list[LLMClient]) -> list[LeaderboardRow]
         per_task: dict[str, list[CaseResult]] = {}
         latencies: dict[str, list[float]] = {}
         for case in cases:
-            prompt = build_prompt(case, include_oracle=model.needs_oracle)
-            pred = model.predict(case.case_id, prompt)
             scorer = SCORERS.get(case.task)
             if scorer is None:
-                continue
+                continue  # таск ещё не реализован — не тратим запрос к модели
+            prompt = PROMPT_BUILDERS[case.task](case, include_oracle=model.needs_oracle)
+            pred = model.predict(case.case_id, prompt)
             result = scorer(case, pred)
             per_task.setdefault(case.task, []).append(result)
             latencies.setdefault(case.task, []).append(pred.latency_ms)
@@ -132,6 +189,9 @@ def run(cases: list[BenchCase], models: list[LLMClient]) -> list[LeaderboardRow]
                 if values:
                     agg[k] = mean(values)
             agg["pass_rate"] = mean(float(r.passed) for r in results)
+            pairs = [(r.labels["gold"], r.labels["pred"]) for r in results if r.labels]
+            if pairs:
+                agg["cwe_macro_f1"] = macro_f1(pairs)
             rows.append(
                 LeaderboardRow(
                     model_name=model.name,
@@ -144,23 +204,34 @@ def run(cases: list[BenchCase], models: list[LLMClient]) -> list[LeaderboardRow]
     return rows
 
 
+# Колонки лидерборда по таскам: (заголовок, ключ метрики, ширина).
+TASK_COLUMNS: dict[str, list[tuple[str, str, int]]] = {
+    "T1": [("EM", "exact_match", 7), ("AST", "ast_match", 7), ("Sim", "fix_similarity", 7),
+           ("TypeAcc", "type_accuracy", 8)],
+    "T2": [("LineP", "line_precision", 7), ("LineR", "line_recall", 7),
+           ("LineF1", "line_f1", 7), ("CWE-Acc", "cwe_accuracy", 8),
+           ("CWE-F1", "cwe_macro_f1", 7)],
+}
+
+
 def format_leaderboard(rows: list[LeaderboardRow]) -> str:
-    """Простой текстовый вывод лидерборда."""
+    """Текстовый лидерборд: по таблице на таск, внутри — по убыванию Pass."""
     if not rows:
         return "(нет результатов)"
-    lines = [
-        f"{'model':<24} {'task':<5} {'n':>4}  {'EM':>7} {'AST':>7} {'Sim':>7} "
-        f"{'TypeAcc':>8} {'Pass':>7}  {'lat(ms)':>8}"
-    ]
-    lines.append("-" * len(lines[0]))
-    for r in sorted(rows, key=lambda x: -x.metrics.get("pass_rate", 0)):
-        lines.append(
-            f"{r.model_name:<24} {r.task:<5} {r.n_cases:>4}  "
-            f"{r.metrics.get('exact_match', 0):>7.2%} "
-            f"{r.metrics.get('ast_match', 0):>7.2%} "
-            f"{r.metrics.get('fix_similarity', 0):>7.2%} "
-            f"{r.metrics.get('type_accuracy', 0):>8.2%} "
-            f"{r.metrics.get('pass_rate', 0):>7.2%}  "
-            f"{r.avg_latency_ms:>8.2f}"
-        )
-    return "\n".join(lines)
+    blocks = []
+    for task in sorted({r.task for r in rows}):
+        cols = TASK_COLUMNS.get(task, [])
+        header = f"{'model':<24} {'task':<5} {'n':>4}  "
+        header += "".join(f"{title:>{width}} " for title, _, width in cols)
+        header += f"{'Pass':>7}  {'lat(ms)':>8}"
+        lines = [header, "-" * len(header)]
+        task_rows = [r for r in rows if r.task == task]
+        for r in sorted(task_rows, key=lambda x: -x.metrics.get("pass_rate", 0)):
+            line = f"{r.model_name:<24} {r.task:<5} {r.n_cases:>4}  "
+            line += "".join(
+                f"{r.metrics.get(key, 0):>{width}.2%} " for _, key, width in cols
+            )
+            line += f"{r.metrics.get('pass_rate', 0):>7.2%}  {r.avg_latency_ms:>8.2f}"
+            lines.append(line)
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)

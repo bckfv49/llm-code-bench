@@ -5,9 +5,10 @@ Harness — единый интерфейс к LLM.
 vLLM) реализуют один и тот же класс `LLMClient`. Evaluator ничего не знает
 о том, что стоит внутри — он просто вызывает `.complete(prompt)`.
 
-Пока в реализации только две заглушки: `EchoModel` и `NoisyModel`. Они
-нужны, чтобы весь стенд крутился end-to-end без ключей API. Реальные
-клиенты появятся отдельными классами в этом же файле.
+Реальные клиенты: `GigaChatClient` и `OpenAIClient` (OpenAI и любые
+OpenAI-совместимые локальные серверы). Заглушки `EchoModel` и `NoisyModel`
+нужны, чтобы стенд крутился end-to-end без ключей API; они умеют отвечать
+на T1 и T2.
 """
 
 from __future__ import annotations
@@ -59,6 +60,8 @@ class LLMClient(ABC):
 
 _FIX_LINE_RE = re.compile(r"^FIX:\s*(.+)$", re.MULTILINE)
 _TYPE_LINE_RE = re.compile(r"^TYPE:\s*(\S+)", re.MULTILINE)
+# Oracle-блок T2 (см. tasks/task2_security.build_prompt).
+_T2_ORACLE_RE = re.compile(r"ORACLE_LINES=([\d,]+)\s+ORACLE_CWE=(\S+)")
 
 
 class EchoModel(LLMClient):
@@ -68,6 +71,9 @@ class EchoModel(LLMClient):
     needs_oracle = True
 
     def complete(self, prompt: str) -> str:
+        t2 = _T2_ORACLE_RE.search(prompt)
+        if t2:
+            return f"LINES: {t2.group(1)}\nCWE: {t2.group(2)}\nCAUSE: oracle"
         # Промпт для T1 содержит блок ORACLE в конце — только для теста.
         m = re.search(r"ORACLE_TYPE=(\S+)\s+ORACLE_FIX=(.*?)(?:\n|$)", prompt)
         if not m:
@@ -106,7 +112,17 @@ class NoisyModel(LLMClient):
         self.p_correct = p_correct
         self._rng = random.Random(seed)
 
+    # Частые CWE для шума в T2 — правдоподобные, но в среднем неверные.
+    _KNOWN_CWES = [
+        "CWE-22", "CWE-78", "CWE-79", "CWE-89", "CWE-94", "CWE-95", "CWE-295",
+        "CWE-338", "CWE-362", "CWE-367", "CWE-377", "CWE-476", "CWE-502",
+        "CWE-532", "CWE-601", "CWE-732", "CWE-798", "CWE-916", "CWE-918", "CWE-1333",
+    ]
+
     def complete(self, prompt: str) -> str:
+        t2 = _T2_ORACLE_RE.search(prompt)
+        if t2:
+            return self._complete_t2(prompt, t2)
         # Всегда пробуем прочитать эталон из oracle-блока — это наш способ
         # "притвориться" моделью с заданным качеством p_correct.
         m = re.search(r"ORACLE_TYPE=(\S+)\s+ORACLE_FIX=(.*?)(?:\n|$)", prompt)
@@ -116,6 +132,16 @@ class NoisyModel(LLMClient):
         err_type = self._rng.choice(self._KNOWN_TYPES)
         fix = self._rng.choice(self._FIX_TEMPLATES)
         return f"TYPE: {err_type}\nFIX: {fix}"
+
+    def _complete_t2(self, prompt: str, oracle: re.Match) -> str:
+        if self._rng.random() < self.p_correct:
+            return f"LINES: {oracle.group(1)}\nCWE: {oracle.group(2)}\nCAUSE: oracle"
+        # Шум: случайная строка сниппета и случайный CWE из частых.
+        n_lines = len(re.findall(r"^\d+\| ", prompt, re.MULTILINE)) or 1
+        line = self._rng.randint(1, n_lines)
+        cwe = self._rng.choice(self._KNOWN_CWES)
+        return f"LINES: {line}\nCWE: {cwe}\nCAUSE: guess"
+
 
 def parse_t1_output(raw: str) -> dict[str, str]:
     """Достаём из ответа модели тип ошибки и предложенный фикс.

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -37,7 +38,22 @@ def validate(path: Path) -> list[str]:
             seen.add(case.case_id)
             if not case.expected:
                 errors.append(f"line {i}: expected is empty")
+            if case.task == "T2":
+                errors.extend(f"line {i}: {e}" for e in _check_t2(case))
     return errors
+
+
+def _check_t2(case: BenchCase) -> list[str]:
+    """T2: номера строк существуют в сниппете, CWE в формате CWE-<число>."""
+    errs: list[str] = []
+    n = len(case.metadata.get("snippet", "").split("\n"))
+    lines = case.expected.get("lines")
+    if not lines or not all(isinstance(x, int) and 1 <= x <= n for x in lines):
+        errs.append(f"expected.lines {lines!r} out of range 1..{n}")
+    for cwe in [case.expected.get("cwe", ""), *case.metadata.get("acceptable_cwe", [])]:
+        if not re.fullmatch(r"CWE-\d+", cwe):
+            errs.append(f"bad CWE id {cwe!r}")
+    return errs
 
 
 def main() -> int:

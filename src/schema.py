@@ -57,3 +57,7 @@ class CaseResult(BaseModel):
     task: TaskId
     metrics: dict[str, float] = Field(default_factory=dict)
     passed: bool = False
+    labels: dict[str, str] = Field(
+        default_factory=dict,
+        description="Эталонный и предсказанный класс ({'gold', 'pred'}) для macro-F1",
+    )
