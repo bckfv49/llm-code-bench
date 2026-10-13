@@ -2,7 +2,9 @@
 Демо-прогон бенчмарка.
 
 Прогоняет все кейсы через все модели, печатает лидерборд в консоль
-и сохраняет результаты в папку results/ (leaderboard.txt + run.json),
+и сохраняет результаты в папку results/: leaderboard.txt и run.json
+(итоговые метрики), predictions.jsonl (ответ на каждый кейс) и
+error_analysis.md (анализ провалов).
 
 Запуск из корня репозитория -    python -m scripts.run_demo
 """
@@ -22,6 +24,7 @@ import os
 
 from src.evaluator import format_leaderboard, run
 from src.sandbox import docker_available
+from scripts.error_analysis import build_report
 from src.harness import LLMClient, NoisyModel, GigaChatClient, OpenAIClient
 from src.tasks.task1_lint import load_cases
 
@@ -74,7 +77,8 @@ def main() -> None:
     models = build_models()
     print("Модели: " + ", ".join(m.name for m in models) + "\n")
 
-    rows = run(cases, models)
+    records: list[dict] = []
+    rows = run(cases, models, records=records)
     table = format_leaderboard(rows)
     print(table)
 
@@ -91,7 +95,14 @@ def main() -> None:
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    print(f"\nРезультаты сохранены в {RESULTS.relative_to(ROOT)}/")
+    # Ответ каждой модели на каждый кейс + отчёт по провалам.
+    (RESULTS / "predictions.jsonl").write_text(
+        "".join(json.dumps(rec, ensure_ascii=False) + "\n" for rec in records),
+        encoding="utf-8",
+    )
+    (RESULTS / "error_analysis.md").write_text(build_report(records), encoding="utf-8")
+    print(f"\nРезультаты сохранены в {RESULTS.relative_to(ROOT)}/ "
+          "(leaderboard.txt, run.json, predictions.jsonl, error_analysis.md)")
 
 
 if __name__ == "__main__":

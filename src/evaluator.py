@@ -169,9 +169,11 @@ def score_t3(case: BenchCase, pred: Prediction) -> CaseResult:
     пройденными тестами: «упростить» код, сломав его, — не заслуга.
     """
     code = task3_refactor.extract_code(pred.raw_output)
-    pred.parsed = {"code": code}
     before = task3_refactor.code_metrics(case.metadata["snippet"])
     after = task3_refactor.code_metrics(code) if code else None
+    # Подробности для анализа провалов (results/predictions.jsonl).
+    pred.parsed = {"code": code, "parseable": after is not None,
+                   "complexity_before": before, "complexity_after": after}
 
     tests_ok = False
     if after is not None:  # непарсящийся код незачем запускать
@@ -179,6 +181,10 @@ def score_t3(case: BenchCase, pred: Prediction) -> CaseResult:
         script = task3_refactor.build_test_script(code, case.metadata["tests"], nonce)
         result = _sandbox().run(script)
         tests_ok = result.ok and nonce in result.stdout
+        if not tests_ok:
+            pred.parsed["sandbox_error"] = (
+                "timeout" if result.timed_out else _last_line(result.stderr) or "no success marker"
+            )
 
     metrics: dict[str, float] = {"tests_pass": float(tests_ok)}
     simpler = False
@@ -200,6 +206,12 @@ def score_t3(case: BenchCase, pred: Prediction) -> CaseResult:
     )
 
 
+def _last_line(text: str) -> str:
+    """Последняя непустая строка — у traceback это тип и текст исключения."""
+    lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
+    return lines[-1][:200] if lines else ""
+
+
 SCORERS: dict[str, Scorer] = {"T1": score_t1, "T2": score_t2, "T3": score_t3}
 
 PROMPT_BUILDERS: dict[str, Callable[..., str]] = {
@@ -218,8 +230,37 @@ class LeaderboardRow:
     avg_latency_ms: float = 0.0
 
 
-def run(cases: list[BenchCase], models: list[LLMClient]) -> list[LeaderboardRow]:
-    """Прогоняет все кейсы через все модели и возвращает лидерборд."""
+# Поля метаданных кейса, нужные для группировки в анализе провалов.
+_RECORD_META = ("domain", "difficulty", "pattern", "trap", "acceptable_cwe", "multiple_valid")
+
+
+def case_record(case: BenchCase, model: LLMClient, pred: Prediction,
+                result: CaseResult) -> dict:
+    """Одна строка results/predictions.jsonl: что модель ответила на кейс и как оценена."""
+    expected = {k: v for k, v in case.expected.items() if k != "reference_solution"}
+    return {
+        "model": model.name,
+        "baseline": model.needs_oracle,  # заглушки читают эталон — в анализ провалов не идут
+        "task": case.task,
+        "case_id": case.case_id,
+        "passed": result.passed,
+        "metrics": result.metrics,
+        "expected": expected,
+        "parsed": pred.parsed,
+        "raw_output": pred.raw_output,
+        "error": pred.error,
+        "latency_ms": round(pred.latency_ms, 1),
+        "meta": {k: case.metadata[k] for k in _RECORD_META if k in case.metadata},
+    }
+
+
+def run(cases: list[BenchCase], models: list[LLMClient],
+        records: list[dict] | None = None) -> list[LeaderboardRow]:
+    """Прогоняет все кейсы через все модели и возвращает лидерборд.
+
+    Если передан список records, в него добавляется ответ модели на каждый
+    кейс (см. case_record) — для анализа провалов.
+    """
     rows: list[LeaderboardRow] = []
     for model in models:
         per_task: dict[str, list[CaseResult]] = {}
@@ -231,6 +272,8 @@ def run(cases: list[BenchCase], models: list[LLMClient]) -> list[LeaderboardRow]
             prompt = PROMPT_BUILDERS[case.task](case, include_oracle=model.needs_oracle)
             pred = model.predict(case.case_id, prompt)
             result = scorer(case, pred)
+            if records is not None:
+                records.append(case_record(case, model, pred, result))
             per_task.setdefault(case.task, []).append(result)
             latencies.setdefault(case.task, []).append(pred.latency_ms)
 

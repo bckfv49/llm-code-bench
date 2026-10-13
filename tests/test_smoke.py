@@ -481,3 +481,57 @@ def test_t3_naive_refactors_fail_in_docker() -> None:
         nonce = uuid.uuid4().hex
         res = sb.run(build_test_script(naive, case.metadata["tests"], nonce))
         assert nonce not in res.stdout, f"{case.case_id}: наивное решение проходит тесты"
+
+
+# --- анализ провалов ------------------------------------------------------
+
+
+def test_run_collects_record_per_model_and_case() -> None:
+    from src.harness import EchoModel, NoisyModel
+
+    cases = load_cases(DATASET) + load_cases(T2_DATASET)
+    records: list[dict] = []
+    run(cases, [EchoModel(), NoisyModel(p_correct=0.0)], records=records)
+    assert len(records) == 2 * len(cases)
+    r = records[0]
+    assert {"model", "baseline", "task", "case_id", "passed", "metrics", "parsed",
+            "raw_output", "expected", "meta"} <= r.keys()
+    assert all(rec["baseline"] for rec in records)  # обе заглушки читают эталон
+
+
+def test_t3_failure_reasons() -> None:
+    from scripts.error_analysis import t3_failure_reason
+
+    base = {"error": None, "parsed": {"parseable": True,
+            "complexity_before": {"loc": 5, "ast_nodes": 30},
+            "complexity_after": {"loc": 5, "ast_nodes": 30}}}
+    assert "не стал проще" in t3_failure_reason(base)
+    assert "StopIteration" in t3_failure_reason(
+        {**base, "parsed": {**base["parsed"], "sandbox_error": "StopIteration"}})
+    assert "не парсится" in t3_failure_reason({**base, "parsed": {"parseable": False}})
+    assert "ошибка запроса" in t3_failure_reason({**base, "error": "TimeoutError: x"})
+
+
+def _rec(model, case_id, passed, task="T1", baseline=False):
+    return {"model": model, "baseline": baseline, "task": task, "case_id": case_id,
+            "passed": passed, "metrics": {"type_accuracy": float(passed)},
+            "expected": {"error_type": "NameError", "fix": "x = 1"},
+            "parsed": {"error_type": "SyntaxError", "fix": "x=1"}, "raw_output": "",
+            "error": None, "meta": {}}
+
+
+def test_report_excludes_baselines_and_lists_failures() -> None:
+    from scripts.error_analysis import build_report
+
+    text = build_report([_rec("real-a", "T1-1", False), _rec("noisy", "T1-1", False, baseline=True)])
+    assert "## real-a" in text and "## noisy" not in text
+    assert "T1-1" in text and "NameError" in text
+
+
+def test_report_common_failures_need_all_models() -> None:
+    from scripts.error_analysis import build_report
+
+    recs = [_rec("a", "T1-1", False), _rec("b", "T1-1", False),   # провалили обе
+            _rec("a", "T1-2", False), _rec("b", "T1-2", True)]    # провалила одна
+    common = build_report(recs).split("## Провалы всех моделей")[1]
+    assert "NameError: 1" in common  # только T1-1
