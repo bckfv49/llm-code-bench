@@ -21,6 +21,7 @@ load_dotenv()  # подтягиваем .env в переменные окруж�
 import os
 
 from src.evaluator import format_leaderboard, run
+from src.sandbox import docker_available
 from src.harness import LLMClient, NoisyModel, GigaChatClient, OpenAIClient
 from src.tasks.task1_lint import load_cases
 
@@ -30,6 +31,8 @@ DATASETS = [
     ROOT / "data" / "task1_lint" / "samples.jsonl",
     ROOT / "data" / "task2_security" / "samples.jsonl",
 ]
+# T3 запускает код модели — по заданию только в Docker-песочнице.
+T3_DATASET = ROOT / "data" / "task3_refactor" / "samples.jsonl"
 RESULTS = ROOT / "results"
 
 
@@ -59,6 +62,11 @@ def build_models() -> list[LLMClient]:
 
 def main() -> None:
     cases = [c for path in DATASETS for c in load_cases(path)]
+    docker_ok, why = docker_available()
+    if docker_ok:
+        cases += load_cases(T3_DATASET)
+    else:
+        print(f"T3 пропущен: {why}. Код модели запускается только в Docker.\n")
     by_task = Counter(c.task for c in cases)
     print(f"Загружено кейсов: {len(cases)} ("
           + ", ".join(f"{t}: {n}" for t, n in sorted(by_task.items())) + ")\n")

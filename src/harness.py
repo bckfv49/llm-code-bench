@@ -8,7 +8,7 @@ vLLM) реализуют один и тот же класс `LLMClient`. Evaluat
 Реальные клиенты: `GigaChatClient` и `OpenAIClient` (OpenAI и любые
 OpenAI-совместимые локальные серверы). Заглушки `EchoModel` и `NoisyModel`
 нужны, чтобы стенд крутился end-to-end без ключей API; они умеют отвечать
-на T1 и T2.
+на T1, T2 и T3.
 """
 
 from __future__ import annotations
@@ -62,6 +62,9 @@ _FIX_LINE_RE = re.compile(r"^FIX:\s*(.+)$", re.MULTILINE)
 _TYPE_LINE_RE = re.compile(r"^TYPE:\s*(\S+)", re.MULTILINE)
 # Oracle-блок T2 (см. tasks/task2_security.build_prompt).
 _T2_ORACLE_RE = re.compile(r"ORACLE_LINES=([\d,]+)\s+ORACLE_CWE=(\S+)")
+# Oracle-блок T3 (см. tasks/task3_refactor.build_prompt) и исходный код кейса.
+_T3_ORACLE_RE = re.compile(r"ORACLE_T3_BEGIN\n(.*?)\nORACLE_T3_END", re.DOTALL)
+_T3_SOURCE_RE = re.compile(r"Code:\n```python\n(.*?)\n```", re.DOTALL)
 
 
 class EchoModel(LLMClient):
@@ -71,6 +74,9 @@ class EchoModel(LLMClient):
     needs_oracle = True
 
     def complete(self, prompt: str) -> str:
+        t3 = _T3_ORACLE_RE.search(prompt)
+        if t3:
+            return f"```python\n{t3.group(1)}\n```"
         t2 = _T2_ORACLE_RE.search(prompt)
         if t2:
             return f"LINES: {t2.group(1)}\nCWE: {t2.group(2)}\nCAUSE: oracle"
@@ -120,6 +126,9 @@ class NoisyModel(LLMClient):
     ]
 
     def complete(self, prompt: str) -> str:
+        t3 = _T3_ORACLE_RE.search(prompt)
+        if t3:
+            return self._complete_t3(prompt, t3)
         t2 = _T2_ORACLE_RE.search(prompt)
         if t2:
             return self._complete_t2(prompt, t2)
@@ -141,6 +150,14 @@ class NoisyModel(LLMClient):
         line = self._rng.randint(1, n_lines)
         cwe = self._rng.choice(self._KNOWN_CWES)
         return f"LINES: {line}\nCWE: {cwe}\nCAUSE: guess"
+
+    def _complete_t3(self, prompt: str, oracle: re.Match) -> str:
+        if self._rng.random() < self.p_correct:
+            return f"```python\n{oracle.group(1)}\n```"
+        # Шум: «модель не справилась» — вернула исходный код без изменений.
+        # Тесты он проходит, но проще не стал, поэтому кейс не засчитается.
+        source = _T3_SOURCE_RE.search(prompt)
+        return f"```python\n{source.group(1) if source else ''}\n```"
 
 
 def parse_t1_output(raw: str) -> dict[str, str]:

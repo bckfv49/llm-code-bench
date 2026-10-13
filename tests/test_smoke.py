@@ -301,3 +301,147 @@ def test_leaderboard_has_block_per_task() -> None:
     cases = load_cases(DATASET) + load_cases(T2_DATASET)
     text = format_leaderboard(run(cases, [EchoModel()]))
     assert "TypeAcc" in text and "CWE-F1" in text
+
+
+# --- T3: рефакторинг ------------------------------------------------------
+
+import pytest
+
+T3_DATASET = ROOT / "data" / "task3_refactor" / "samples.jsonl"
+
+
+class FakeSandbox:
+    """Заглушка Docker для быстрых тестов логики скорера."""
+
+    def __init__(self, ok: bool = True, echo_nonce: bool = True) -> None:
+        self.ok, self.echo_nonce, self.calls = ok, echo_nonce, 0
+
+    def run(self, script: str):
+        from src.sandbox import SandboxResult
+
+        self.calls += 1
+        nonce = script.rstrip().rsplit("print(", 1)[1].strip("')\"")
+        return SandboxResult(ok=self.ok, stdout=nonce if self.echo_nonce else "", stderr="")
+
+
+def _t3_case():
+    return load_cases(T3_DATASET)[0]  # squares_of_even
+
+
+def _score_t3_with(monkeypatch, sandbox, raw: str):
+    import src.evaluator as ev
+    from src.schema import Prediction
+
+    monkeypatch.setattr(ev, "T3_SANDBOX", sandbox)
+    return ev.score_t3(_t3_case(), Prediction(case_id="x", model_name="m", raw_output=raw))
+
+
+def test_t3_dataset_valid_and_covers_domains() -> None:
+    from scripts.validate_dataset import validate
+
+    assert validate(T3_DATASET) == []
+    cases = load_cases(T3_DATASET)
+    assert len(cases) >= 20
+    assert {c.metadata["domain"] for c in cases} == {"web", "ml", "system"}
+
+
+def test_t3_code_metrics_ignore_comments_and_docstrings() -> None:
+    from src.tasks.task3_refactor import code_metrics
+
+    plain = "def f(x):\n    return x + 1"
+    noisy = 'def f(x):\n    """Docs."""\n    # comment\n\n    return x + 1'
+    assert code_metrics(plain) == code_metrics(noisy)
+    assert code_metrics("def f(:") is None
+
+
+def test_t3_is_simpler_rule() -> None:
+    from src.tasks.task3_refactor import is_simpler
+
+    assert is_simpler({"loc": 5, "ast_nodes": 30}, {"loc": 2, "ast_nodes": 30})
+    assert not is_simpler({"loc": 5, "ast_nodes": 30}, {"loc": 5, "ast_nodes": 30})  # не изменился
+    assert not is_simpler({"loc": 5, "ast_nodes": 30}, {"loc": 2, "ast_nodes": 31})  # одно выросло
+
+
+def test_t3_extract_code_and_prompt() -> None:
+    from src.tasks.task3_refactor import build_prompt, extract_code
+
+    assert extract_code("Sure!\n```python\nx = 1\n```\nDone") == "x = 1"
+    assert extract_code("x = 1") == "x = 1"
+    case = _t3_case()
+    assert "ORACLE" not in build_prompt(case)
+    assert "squares_of_even" in build_prompt(case)
+
+
+def test_t3_scorer_passes_simpler_working_code(monkeypatch) -> None:
+    ref = _t3_case().expected["reference_solution"]
+    r = _score_t3_with(monkeypatch, FakeSandbox(), f"```python\n{ref}\n```")
+    assert r.passed and r.metrics["tests_pass"] == 1.0 and r.metrics["loc_reduction"] > 0
+
+
+def test_t3_scorer_rejects_unchanged_code(monkeypatch) -> None:
+    """Тесты проходят, но код не стал проще — по заданию не засчитывается."""
+    r = _score_t3_with(monkeypatch, FakeSandbox(), _t3_case().metadata["snippet"])
+    assert r.metrics["tests_pass"] == 1.0 and not r.passed
+
+
+def test_t3_scorer_rejects_failing_tests_and_garbage(monkeypatch) -> None:
+    ref = _t3_case().expected["reference_solution"]
+    assert not _score_t3_with(monkeypatch, FakeSandbox(ok=False), ref).passed
+    # процесс завершился «успешно», но до метки не дошёл (напр. sys.exit(0))
+    assert not _score_t3_with(monkeypatch, FakeSandbox(echo_nonce=False), ref).passed
+    # непарсящийся код даже не отправляется в песочницу
+    sb = FakeSandbox()
+    assert not _score_t3_with(monkeypatch, sb, "def broken(:").passed
+    assert sb.calls == 0
+
+
+def test_docker_command_is_isolated() -> None:
+    from src.sandbox import DockerSandbox
+
+    cmd = " ".join(DockerSandbox().command("t"))
+    for flag in ("--network none", "--read-only", "--cap-drop ALL",
+                 "--user 65534:65534", "no-new-privileges", "--pids-limit", "--memory"):
+        assert flag in cmd
+    assert "-v " not in cmd and "--volume" not in cmd  # папки хоста не монтируются
+
+
+def _docker_or_skip():
+    from src.sandbox import docker_available
+
+    ok, why = docker_available(pull=False)
+    if not ok:
+        pytest.skip(f"Docker недоступен: {why}")
+
+
+def test_t3_dataset_passes_in_docker() -> None:
+    """Каждый исходник и эталон реально проходят свои тесты в контейнере."""
+    import uuid
+
+    from src.sandbox import DockerSandbox
+    from src.tasks.task3_refactor import build_test_script
+
+    _docker_or_skip()
+    sb = DockerSandbox()
+    for case in load_cases(T3_DATASET):
+        for code in (case.metadata["snippet"], case.expected["reference_solution"]):
+            nonce = uuid.uuid4().hex
+            res = sb.run(build_test_script(code, case.metadata["tests"], nonce))
+            assert res.ok and nonce in res.stdout, (case.case_id, res.stderr[-300:])
+
+
+@pytest.mark.parametrize("evil", [
+    "import socket\nsocket.create_connection(('1.1.1.1', 80), timeout=3)",  # сеть
+    "open('/etc/pwned', 'w').write('x')",                                      # запись в ФС
+    "import sys\nsys.exit(0)",                                                 # обход тестов
+    "while True:\n    pass",                                                   # зависание
+])
+def test_docker_sandbox_contains_malicious_code(evil) -> None:
+    import uuid
+
+    from src.sandbox import DockerSandbox
+    from src.tasks.task3_refactor import build_test_script
+
+    _docker_or_skip()
+    nonce = uuid.uuid4().hex
+    res = DockerSandbox(timeout=10).run(build_test_script(evil, "assert True", nonce))
+    assert nonce not in res.stdout  # ни один из вариантов не засчитан

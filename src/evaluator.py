@@ -5,7 +5,7 @@ Evaluator — ядро оценки.
 каждый кейс через каждую модель, вычисляет метрики и агрегирует
 их в лидерборд.
 
-Реализованы T1 и T2. Каждый таск добавляет билдер промпта в PROMPT_BUILDERS
+Реализованы T1, T2 и T3. Каждый таск добавляет билдер промпта в PROMPT_BUILDERS
 и scorer с сигнатурой `(case, prediction) -> CaseResult` в SCORERS.
 """
 
@@ -14,13 +14,15 @@ from __future__ import annotations
 import ast
 import difflib
 import textwrap
+import uuid
 from dataclasses import dataclass, field
 from statistics import mean
 from typing import Callable
 
 from .harness import LLMClient, parse_t1_output
 from .schema import BenchCase, CaseResult, Prediction
-from .tasks import task1_lint, task2_security
+from .sandbox import DockerSandbox
+from .tasks import task1_lint, task2_security, task3_refactor
 
 
 
@@ -145,11 +147,61 @@ def macro_f1(pairs: list[tuple[str, str]]) -> float:
     return mean(scores) if scores else 0.0
 
 
-SCORERS: dict[str, Scorer] = {"T1": score_t1, "T2": score_t2}
+# Песочница для T3. Создаётся при первом использовании; тесты могут
+# подменить её заглушкой, чтобы не требовать Docker.
+T3_SANDBOX: DockerSandbox | None = None
+
+
+def _sandbox() -> DockerSandbox:
+    global T3_SANDBOX
+    if T3_SANDBOX is None:
+        T3_SANDBOX = DockerSandbox()
+    return T3_SANDBOX
+
+
+def score_t3(case: BenchCase, pred: Prediction) -> CaseResult:
+    """Метрики Task 3 по заданию: unit-тесты + снижение сложности.
+
+    Код модели вместе с тестами кейса запускается в Docker-песочнице.
+    Кейс засчитан, если тесты прошли и код стал проще: ни число строк, ни
+    число узлов AST не выросли, и хотя бы одно уменьшилось.
+    Снижение сложности (LOC↓, AST↓) учитывается только для кейсов с
+    пройденными тестами: «упростить» код, сломав его, — не заслуга.
+    """
+    code = task3_refactor.extract_code(pred.raw_output)
+    pred.parsed = {"code": code}
+    before = task3_refactor.code_metrics(case.metadata["snippet"])
+    after = task3_refactor.code_metrics(code) if code else None
+
+    tests_ok = False
+    if after is not None:  # непарсящийся код незачем запускать
+        nonce = uuid.uuid4().hex
+        script = task3_refactor.build_test_script(code, case.metadata["tests"], nonce)
+        result = _sandbox().run(script)
+        tests_ok = result.ok and nonce in result.stdout
+
+    metrics: dict[str, float] = {"tests_pass": float(tests_ok)}
+    simpler = False
+    if tests_ok:
+        metrics["loc_reduction"] = (before["loc"] - after["loc"]) / before["loc"]
+        metrics["ast_reduction"] = (before["ast_nodes"] - after["ast_nodes"]) / before["ast_nodes"]
+        simpler = task3_refactor.is_simpler(before, after)
+
+    return CaseResult(
+        case_id=case.case_id,
+        model_name=pred.model_name,
+        task=case.task,
+        metrics=metrics,
+        passed=tests_ok and simpler,
+    )
+
+
+SCORERS: dict[str, Scorer] = {"T1": score_t1, "T2": score_t2, "T3": score_t3}
 
 PROMPT_BUILDERS: dict[str, Callable[..., str]] = {
     "T1": task1_lint.build_prompt,
     "T2": task2_security.build_prompt,
+    "T3": task3_refactor.build_prompt,
 }
 
 
@@ -211,6 +263,8 @@ TASK_COLUMNS: dict[str, list[tuple[str, str, int]]] = {
     "T2": [("LineP", "line_precision", 7), ("LineR", "line_recall", 7),
            ("LineF1", "line_f1", 7), ("CWE-Acc", "cwe_accuracy", 8),
            ("CWE-F1", "cwe_macro_f1", 7)],
+    "T3": [("Tests", "tests_pass", 7), ("LOC↓", "loc_reduction", 7),
+           ("AST↓", "ast_reduction", 7)],
 }
 
 

@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 import sys
@@ -17,6 +18,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from src.schema import BenchCase
+from src.tasks.task3_refactor import code_metrics, is_simpler
 
 
 def validate(path: Path) -> list[str]:
@@ -40,6 +42,8 @@ def validate(path: Path) -> list[str]:
                 errors.append(f"line {i}: expected is empty")
             if case.task == "T2":
                 errors.extend(f"line {i}: {e}" for e in _check_t2(case))
+            if case.task == "T3":
+                errors.extend(f"line {i}: {e}" for e in _check_t3(case))
     return errors
 
 
@@ -53,6 +57,32 @@ def _check_t2(case: BenchCase) -> list[str]:
     for cwe in [case.expected.get("cwe", ""), *case.metadata.get("acceptable_cwe", [])]:
         if not re.fullmatch(r"CWE-\d+", cwe):
             errs.append(f"bad CWE id {cwe!r}")
+    return errs
+
+
+def _check_t3(case: BenchCase) -> list[str]:
+    """T3, статически (код не запускается): исходник и эталон парсятся,
+    оба определяют entry_point, тесты есть, эталон проще исходника.
+    Что тесты реально проходят, проверяется в Docker при сборке датасета
+    и в tests/test_smoke.py."""
+    errs: list[str] = []
+    entry = case.metadata.get("entry_point", "")
+    if not case.metadata.get("tests", "").strip():
+        errs.append("metadata.tests is empty")
+    metrics = {}
+    for label, src in (("snippet", case.metadata.get("snippet", "")),
+                       ("reference", case.expected.get("reference_solution", ""))):
+        try:
+            tree = ast.parse(src)
+        except SyntaxError as exc:
+            errs.append(f"{label} does not parse: {exc}")
+            continue
+        names = {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
+        if entry not in names:
+            errs.append(f"{label} does not define entry_point {entry!r}")
+        metrics[label] = code_metrics(src)
+    if len(metrics) == 2 and not is_simpler(metrics["snippet"], metrics["reference"]):
+        errs.append(f"reference is not simpler: {metrics['snippet']} -> {metrics['reference']}")
     return errs
 
 
