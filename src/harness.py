@@ -25,6 +25,11 @@ class LLMClient(ABC):
 
     name: str
 
+    # Baseline-заглушки читают эталон из блока ORACLE в промпте. Флаг по
+    # умолчанию False — любой новый реальный клиент получает чистый промпт,
+    # даже если про этот флаг не знает.
+    needs_oracle: bool = False
+
     @abstractmethod
     def complete(self, prompt: str) -> str:
         """Возвращает сырой текстовый ответ модели."""
@@ -60,6 +65,7 @@ class EchoModel(LLMClient):
     """Отвечает эталоном, зашитым прямо в промпт. Верхняя граница точности."""
 
     name = "echo-oracle"
+    needs_oracle = True
 
     def complete(self, prompt: str) -> str:
         # Промпт для T1 содержит блок ORACLE в конце — только для теста.
@@ -77,6 +83,7 @@ class NoisyModel(LLMClient):
     """
 
     name = "noisy-baseline"
+    needs_oracle = True
 
     # Список типов ошибок, которые мы вообще ожидаем в T1.
     _KNOWN_TYPES = [
@@ -157,3 +164,50 @@ class GigaChatClient(LLMClient):
     def complete(self, prompt: str) -> str:
         response = self._giga.chat(prompt)
         return response.choices[0].message.content
+
+# ---------------------------------------------------------------------------
+# OpenAI-совместимые модели.
+#
+# Один класс покрывает и облако, и локальный инференс: OpenAI, OpenRouter,
+# Ollama, llama.cpp, vLLM, LM Studio — все отдают /v1/chat/completions с
+# одинаковым JSON. Разница только в base_url, поэтому SDK не нужен, хватает
+# одного POST через httpx (он уже стоит как зависимость gigachat).
+# ---------------------------------------------------------------------------
+
+
+class OpenAIClient(LLMClient):
+    """Клиент к любому OpenAI-совместимому endpoint'у.
+
+        OpenAIClient("gpt-4o-mini")                                   # OpenAI
+        OpenAIClient("qwen2.5-coder", base_url="http://localhost:11434/v1")  # Ollama
+    """
+
+    def __init__(
+        self,
+        model: str,
+        base_url: str = "https://api.openai.com/v1",
+        api_key: str | None = None,
+        name: str | None = None,
+        timeout: float = 60.0,
+    ) -> None:
+        import httpx  # импорт внутри, чтобы harness работал без httpx
+
+        key = api_key or os.environ.get("OPENAI_API_KEY", "")
+        # Локальные серверы ключ не проверяют — пустой допустим.
+        headers = {"Authorization": f"Bearer {key}"} if key else {}
+        self._url = base_url.rstrip("/") + "/chat/completions"
+        self._http = httpx.Client(timeout=timeout, headers=headers)
+        self.model_id = model
+        self.name = name or f"openai:{model}"
+
+    def complete(self, prompt: str) -> str:
+        resp = self._http.post(
+            self._url,
+            json={
+                "model": self.model_id,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0,  # прогон должен быть воспроизводимым
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]

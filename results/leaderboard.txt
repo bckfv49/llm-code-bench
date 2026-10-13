@@ -1,5 +1,5 @@
-model                task     n       EM  TypeAcc    Pass   lat(ms)
--------------------------------------------------------------------
-gigachat:GigaChat-2-Pro T1      33   69.23%   78.79%  63.64%    565.38
-noisy-baseline       T1      33   53.85%   60.61%  48.48%      0.01
-noisy-baseline-weak  T1      33   19.23%   24.24%  18.18%      0.00
+model                    task     n       EM     AST     Sim  TypeAcc    Pass   lat(ms)
+---------------------------------------------------------------------------------------
+gigachat:GigaChat-2-Pro  T1      33   69.23%  75.00%  73.29%   78.79%  63.64%    432.76
+noisy-baseline           T1      33   53.85%  51.52%  60.26%   60.61%  48.48%      0.01
+noisy-baseline-weak      T1      33   19.23%  21.21%  42.74%   24.24%  18.18%      0.01

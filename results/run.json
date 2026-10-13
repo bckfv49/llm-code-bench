@@ -1,39 +1,45 @@
 {
-  "run_at": "2026-09-23T14:54:17",
+  "run_at": "2026-09-28T23:09:23",
   "n_cases": 33,
   "rows": [
-    {
-      "model_name": "gigachat:GigaChat-2-Pro",
-      "task": "T1",
-      "n_cases": 33,
-      "metrics": {
-        "type_accuracy": 0.7878787878787878,
-        "exact_match": 0.6923076923076923,
-        "pass_rate": 0.6363636363636364
-      },
-      "avg_latency_ms": 565.3827242398014
-    },
     {
       "model_name": "noisy-baseline",
       "task": "T1",
       "n_cases": 33,
       "metrics": {
-        "type_accuracy": 0.6060606060606061,
+        "ast_match": 0.5151515151515151,
+        "fix_similarity": 0.6025544176369314,
         "exact_match": 0.5384615384615384,
+        "type_accuracy": 0.6060606060606061,
         "pass_rate": 0.48484848484848486
       },
-      "avg_latency_ms": 0.011415148478452906
+      "avg_latency_ms": 0.010951542097962263
     },
     {
       "model_name": "noisy-baseline-weak",
       "task": "T1",
       "n_cases": 33,
       "metrics": {
-        "type_accuracy": 0.24242424242424243,
+        "ast_match": 0.21212121212121213,
+        "fix_similarity": 0.4273648499751287,
         "exact_match": 0.19230769230769232,
+        "type_accuracy": 0.24242424242424243,
         "pass_rate": 0.18181818181818182
       },
-      "avg_latency_ms": 0.004036364385463072
+      "avg_latency_ms": 0.0060636437300479774
+    },
+    {
+      "model_name": "gigachat:GigaChat-2-Pro",
+      "task": "T1",
+      "n_cases": 33,
+      "metrics": {
+        "ast_match": 0.75,
+        "fix_similarity": 0.7328828877471523,
+        "exact_match": 0.6923076923076923,
+        "type_accuracy": 0.7878787878787878,
+        "pass_rate": 0.6363636363636364
+      },
+      "avg_latency_ms": 432.7601575871196
     }
   ]
 }
