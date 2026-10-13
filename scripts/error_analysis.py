@@ -3,11 +3,11 @@
 
 Читает results/predictions.jsonl (его пишет run_demo) и строит отчёт
 results/error_analysis.md:
-    T1 — на каких типах ошибок модель проваливается и что она ответила;
-    T2 — какие CWE путает (эталон -> ответ) и где не нашла строку;
-    T3 — почему не засчитан рефакторинг: упали тесты (каким исключением),
-         код не стал проще или не парсится; для ловушек — код модели;
-    итог — кейсы, на которых провалились ВСЕ реальные модели (раздел 5 задания).
+    T1 - на каких типах ошибок модель проваливается и что она ответила;
+    T2 - какие CWE путает (эталон -> ответ) и где не нашла строку;
+    T3 - почему не засчитан рефакторинг: упали тесты (каким исключением),
+         код не стал проще или не парсится; для ловушек - код модели;
+    итог - кейсы, на которых провалились ВСЕ реальные модели (раздел 5 задания).
 
 Baseline-заглушки (читают эталон из промпта) в анализ не входят.
 
@@ -36,16 +36,16 @@ def _cell(value) -> str:
     """Значение для ячейки Markdown-таблицы: в одну строку, без поломки разметки."""
     text = str(value).replace("|", "\\|").replace("\n", " ⏎ ").strip()
     if not text:
-        return "—"
+        return "-"
     return f"`` {text} ``" if "`" in text else f"`{text}`"
 
 
 def _pct(part: int, total: int) -> str:
-    return f"{part}/{total} ({part / total:.0%})" if total else "—"
+    return f"{part}/{total} ({part / total:.0%})" if total else "-"
 
 
 def t3_failure_reason(rec: dict) -> str:
-    """Почему рефакторинг не засчитан — по-человечески."""
+    """Почему рефакторинг не засчитан - по-человечески."""
     parsed = rec.get("parsed") or {}
     if rec.get("error"):
         return f"ошибка запроса к модели: {rec['error'][:120]}"
@@ -61,7 +61,7 @@ def t3_failure_reason(rec: dict) -> str:
 
 
 def _section_t1(recs: list[dict]) -> list[str]:
-    out = ["### T1 — ошибки статического анализа", ""]
+    out = ["### T1 - ошибки статического анализа", ""]
     by_diff: dict[str, list[dict]] = defaultdict(list)
     for r in recs:
         by_diff[r["meta"].get("difficulty", "basic")].append(r)
@@ -90,16 +90,16 @@ def _section_t1(recs: list[dict]) -> list[str]:
                        f"| {_cell(r['expected']['fix'])} | {_cell(p.get('fix', ''))} | {note} |")
     if off_format:
         out += ["", f"Ответов не по формату (нет строки `TYPE:`): {len(off_format)}. "
-                "Они не засчитаны: умение отвечать в заданном формате — часть задачи."]
+                "Они не засчитаны: умение отвечать в заданном формате - часть задачи."]
     trapped = [r for r in failed if r["meta"].get("trap")]
     if trapped:
         out += ["", "**Ловушки, в которые попала модель:**", ""]
-        out += [f"- **{r['case_id']}** — {r['meta']['trap']}" for r in trapped]
+        out += [f"- **{r['case_id']}** - {r['meta']['trap']}" for r in trapped]
     return out + [""]
 
 
 def _section_t2(recs: list[dict]) -> list[str]:
-    out = ["### T2 — поиск уязвимостей", ""]
+    out = ["### T2 - поиск уязвимостей", ""]
     by_domain: dict[str, list[dict]] = defaultdict(list)
     for r in recs:
         by_domain[r["meta"].get("domain", "?")].append(r)
@@ -109,23 +109,23 @@ def _section_t2(recs: list[dict]) -> list[str]:
         out.append(f"| {domain} | {_pct(cwe_ok, len(group))} | {_pct(sum(r['passed'] for r in group), len(group))} |")
 
     wrong_cwe = [r for r in recs if r["metrics"].get("cwe_accuracy", 0) < 1.0]
-    out += ["", f"**Путаница CWE** — {len(wrong_cwe)} из {len(recs)} кейсов:", ""]
+    out += ["", f"**Путаница CWE** - {len(wrong_cwe)} из {len(recs)} кейсов:", ""]
     if wrong_cwe:
         out += ["Колонка «Объяснение модели» показывает, поняла ли модель суть уязвимости, "
                 "даже если номер CWE неверный.", "",
                 "| Кейс | Домен | Эталон | Допустимо также | Ответ модели | Объяснение модели |",
                 "|---|---|---|---|---|---|"]
         for r in wrong_cwe:
-            alt = ", ".join(r["meta"].get("acceptable_cwe", [])) or "—"
+            alt = ", ".join(r["meta"].get("acceptable_cwe", [])) or "-"
             parsed = r.get("parsed") or {}
             answer = parsed.get("cwe") or "(не указан)"
-            cause = (parsed.get("cause") or "").replace("|", "/")[:160] or "—"
+            cause = (parsed.get("cause") or "").replace("|", "/")[:160] or "-"
             out.append(f"| {r['case_id']} | {r['meta'].get('domain', '?')} | {r['expected']['cwe']} "
                        f"| {alt} | {answer} | {cause} |")
 
     missed = [r for r in recs if r["metrics"].get("line_recall", 0) < 1.0
               or r["metrics"].get("line_precision", 0) < 0.5]
-    out += ["", f"**Строки с уязвимостью найдены не полностью или с лишними** — {len(missed)} кейсов:", ""]
+    out += ["", f"**Строки с уязвимостью найдены не полностью или с лишними** - {len(missed)} кейсов:", ""]
     if missed:
         out += ["| Кейс | Эталонные строки | Ответ модели |", "|---|---|---|"]
         for r in missed:
@@ -134,7 +134,7 @@ def _section_t2(recs: list[dict]) -> list[str]:
 
 
 def _section_t3(recs: list[dict]) -> list[str]:
-    out = ["### T3 — рефакторинг", ""]
+    out = ["### T3 - рефакторинг", ""]
     by_diff: dict[str, list[dict]] = defaultdict(list)
     for r in recs:
         by_diff[r["meta"].get("difficulty", "basic")].append(r)
@@ -157,7 +157,7 @@ def _section_t3(recs: list[dict]) -> list[str]:
         for r in trapped:
             code = ((r.get("parsed") or {}).get("code") or "").splitlines()
             shown = "\n".join(code[:MAX_CODE_LINES]) + ("\n# ..." if len(code) > MAX_CODE_LINES else "")
-            out += [f"**{r['case_id']}** — {r['meta'].get('pattern', '')}", "",
+            out += [f"**{r['case_id']}** - {r['meta'].get('pattern', '')}", "",
                     f"- Ловушка: {r['meta']['trap']}",
                     f"- Результат: {t3_failure_reason(r)}", "",
                     "Ответ модели:", "", "```python", shown, "```", ""]
@@ -173,7 +173,7 @@ _GROUP_TITLE = {"T1": "тип ошибки", "T2": "CWE", "T3": "паттерн"
 
 
 def _section_common(by_model: dict[str, list[dict]]) -> list[str]:
-    """Кейсы, проваленные всеми реальными моделями, — по категориям."""
+    """Кейсы, проваленные всеми реальными моделями, - по категориям."""
     n_models = len(by_model)
     out = ["## Провалы всех моделей", ""]
     if n_models == 1:
@@ -192,7 +192,7 @@ def _section_common(by_model: dict[str, list[dict]]) -> list[str]:
         return out + ["Таких кейсов нет.", ""]
     for task in sorted({r["task"] for r in common}):
         groups = Counter(_GROUP_KEY[task](r) for r in common if r["task"] == task)
-        out += [f"**{task}** — по категории «{_GROUP_TITLE[task]}»:", ""]
+        out += [f"**{task}** - по категории «{_GROUP_TITLE[task]}»:", ""]
         out += [f"- {key}: {n}" for key, n in groups.most_common()]
         out.append("")
     return out
@@ -203,13 +203,13 @@ def build_report(records: list[dict]) -> str:
     note = ""
     if not real:
         real = records
-        note = "_Реальных моделей в прогоне нет — отчёт построен по baseline-заглушкам._\n"
+        note = "_Реальных моделей в прогоне нет - отчёт построен по baseline-заглушкам._\n"
     by_model: dict[str, list[dict]] = defaultdict(list)
     for r in real:
         by_model[r["model"]].append(r)
 
     out = ["# Анализ провалов (Error Analysis)", "",
-           "Построено по `results/predictions.jsonl` — ответу каждой модели на каждый кейс.",
+           "Построено по `results/predictions.jsonl` - ответу каждой модели на каждый кейс.",
            "Baseline-заглушки не включены: они читают эталон из промпта.", ""]
     if note:
         out.append(note)
@@ -228,7 +228,7 @@ def build_report(records: list[dict]) -> str:
 
 def main() -> int:
     if not PREDICTIONS.exists():
-        print(f"Нет {PREDICTIONS.relative_to(ROOT)} — сначала запустите python -m scripts.run_demo")
+        print(f"Нет {PREDICTIONS.relative_to(ROOT)} - сначала запустите python -m scripts.run_demo")
         return 1
     REPORT.write_text(build_report(load_records()), encoding="utf-8")
     print(f"[OK] {REPORT.relative_to(ROOT)}")
