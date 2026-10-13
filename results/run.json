@@ -1,126 +1,129 @@
 {
-  "run_at": "2026-10-13T22:48:41",
-  "n_cases": 87,
+  "run_at": "2026-10-14T00:27:19",
+  "n_cases": 95,
   "rows": [
     {
       "model_name": "noisy-baseline",
       "task": "T1",
-      "n_cases": 33,
+      "n_cases": 41,
       "metrics": {
-        "fix_similarity": 0.6025544176369314,
-        "ast_match": 0.5151515151515151,
-        "type_accuracy": 0.6060606060606061,
-        "exact_match": 0.5384615384615384,
-        "pass_rate": 0.48484848484848486
+        "type_accuracy": 0.6097560975609756,
+        "fix_similarity": 0.6217432992487372,
+        "pass_hard": 0.625,
+        "ast_match": 0.5365853658536586,
+        "exact_match": 0.5757575757575758,
+        "pass_rate": 0.5121951219512195
       },
-      "avg_latency_ms": 0.011851538367795221
+      "avg_latency_ms": 0.008156091519972174
     },
     {
       "model_name": "noisy-baseline",
       "task": "T2",
       "n_cases": 23,
       "metrics": {
-        "cwe_accuracy": 0.6521739130434783,
-        "line_recall": 0.6086956521739131,
-        "line_precision": 0.6086956521739131,
-        "line_f1": 0.6086956521739131,
-        "pass_rate": 0.6086956521739131,
-        "cwe_macro_f1": 0.5508771929824561
+        "line_precision": 0.6521739130434783,
+        "cwe_accuracy": 0.5217391304347826,
+        "line_recall": 0.6521739130434783,
+        "line_f1": 0.6521739130434783,
+        "pass_rate": 0.5217391304347826,
+        "cwe_macro_f1": 0.48947368421052634
       },
-      "avg_latency_ms": 0.010647851487864618
+      "avg_latency_ms": 0.006773903884965441
     },
     {
       "model_name": "noisy-baseline",
       "task": "T3",
       "n_cases": 31,
       "metrics": {
-        "loc_reduction": 0.2709805427547363,
-        "ast_reduction": 0.21713044886914812,
-        "pass_hard": 0.4444444444444444,
+        "ast_reduction": 0.18671851688473287,
+        "pass_hard": 0.5555555555555556,
+        "loc_reduction": 0.25622119815668204,
         "tests_pass": 1.0,
-        "pass_rate": 0.41935483870967744
+        "pass_rate": 0.45161290322580644
       },
-      "avg_latency_ms": 0.011383886298825663
+      "avg_latency_ms": 0.009874219916039897
     },
     {
       "model_name": "noisy-baseline-weak",
       "task": "T1",
-      "n_cases": 33,
+      "n_cases": 41,
       "metrics": {
-        "fix_similarity": 0.4273648499751287,
-        "ast_match": 0.21212121212121213,
-        "type_accuracy": 0.24242424242424243,
-        "exact_match": 0.19230769230769232,
-        "pass_rate": 0.18181818181818182
+        "type_accuracy": 0.1951219512195122,
+        "fix_similarity": 0.37423534642262163,
+        "pass_hard": 0.0,
+        "ast_match": 0.17073170731707318,
+        "exact_match": 0.15151515151515152,
+        "pass_rate": 0.14634146341463414
       },
-      "avg_latency_ms": 0.009481823354056387
+      "avg_latency_ms": 0.009656111459906509
     },
     {
       "model_name": "noisy-baseline-weak",
       "task": "T2",
       "n_cases": 23,
       "metrics": {
-        "cwe_accuracy": 0.2608695652173913,
-        "line_recall": 0.45652173913043476,
-        "line_precision": 0.4782608695652174,
-        "line_f1": 0.463768115942029,
-        "pass_rate": 0.2608695652173913,
-        "cwe_macro_f1": 0.19649122807017544
+        "line_precision": 0.5217391304347826,
+        "cwe_accuracy": 0.30434782608695654,
+        "line_recall": 0.5217391304347826,
+        "line_f1": 0.5217391304347826,
+        "pass_rate": 0.30434782608695654,
+        "cwe_macro_f1": 0.265
       },
-      "avg_latency_ms": 0.011026089930016062
+      "avg_latency_ms": 0.010726102830275246
     },
     {
       "model_name": "noisy-baseline-weak",
       "task": "T3",
       "n_cases": 31,
       "metrics": {
-        "loc_reduction": 0.10076804915514592,
-        "ast_reduction": 0.051419257529314456,
+        "ast_reduction": 0.022940454649445725,
         "pass_hard": 0.1111111111111111,
+        "loc_reduction": 0.05887096774193548,
         "tests_pass": 1.0,
-        "pass_rate": 0.16129032258064516
+        "pass_rate": 0.0967741935483871
       },
-      "avg_latency_ms": 0.012793548164829131
+      "avg_latency_ms": 0.012954839715553869
     },
     {
       "model_name": "gigachat:GigaChat-2-Pro",
       "task": "T1",
-      "n_cases": 33,
+      "n_cases": 41,
       "metrics": {
-        "fix_similarity": 0.7421184740114706,
-        "ast_match": 0.7586206896551724,
-        "type_accuracy": 0.7878787878787878,
-        "exact_match": 0.7307692307692307,
-        "pass_rate": 0.6363636363636364
+        "type_accuracy": 0.8292682926829268,
+        "fix_similarity": 0.8665849883245906,
+        "pass_hard": 0.75,
+        "ast_match": 0.85,
+        "exact_match": 0.9090909090909091,
+        "pass_rate": 0.7804878048780488
       },
-      "avg_latency_ms": 1392.5393969737784
+      "avg_latency_ms": 1536.8268756173188
     },
     {
       "model_name": "gigachat:GigaChat-2-Pro",
       "task": "T2",
       "n_cases": 23,
       "metrics": {
-        "cwe_accuracy": 0.7391304347826086,
-        "line_recall": 0.9565217391304348,
-        "line_precision": 0.9347826086956522,
-        "line_f1": 0.9420289855072463,
-        "pass_rate": 0.7391304347826086,
-        "cwe_macro_f1": 0.6158730158730159
+        "line_precision": 0.9130434782608695,
+        "cwe_accuracy": 0.782608695652174,
+        "line_recall": 0.9347826086956522,
+        "line_f1": 0.9130434782608695,
+        "pass_rate": 0.782608695652174,
+        "cwe_macro_f1": 0.6793650793650794
       },
-      "avg_latency_ms": 1583.4620565317732
+      "avg_latency_ms": 990.7843347881799
     },
     {
       "model_name": "gigachat:GigaChat-2-Pro",
       "task": "T3",
       "n_cases": 31,
       "metrics": {
-        "loc_reduction": 0.4838860544217687,
-        "ast_reduction": 0.3477582032688507,
+        "ast_reduction": 0.3477684015229096,
         "pass_hard": 0.6666666666666666,
+        "loc_reduction": 0.4838860544217687,
         "tests_pass": 0.9032258064516129,
         "pass_rate": 0.8709677419354839
       },
-      "avg_latency_ms": 1212.319625804441
+      "avg_latency_ms": 1160.3196000214666
     }
   ]
 }
